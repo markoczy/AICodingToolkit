@@ -1,0 +1,6 @@
+# Templates and tooling are stored and checked out with LF, so a build produces the same bytes on every OS.
+* text=auto eol=lf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.png binary
+*.zip binary

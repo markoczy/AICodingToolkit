@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block nav %}
+<form class="filters tb-nav" method="get" action="{{ url_for('board') }}">
+  <label class="tb-field">Source
+    <select name="source">
+      <option value="">all</option>
+      {% for s in sources %}
+      <option value="{{ s.name }}" {% if s.name == selected_source %}selected{% endif %}>{{ s.name }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label class="tb-field">Priority
+    <select name="priority">
+      <option value="">all</option>
+      {% for p in ["high", "medium", "low"] %}
+      <option value="{{ p }}" {% if p == selected_priority %}selected{% endif %}>{{ p }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  {% if people %}
+  <label class="tb-field">Owner
+    <select name="owner">
+      <option value="">all</option>
+      {% for p in people %}
+      <option value="{{ p }}" {% if p == selected_owner %}selected{% endif %}>{{ p }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  {% endif %}
+  <label class="tb-field">Waiting on
+    <select name="waiting">
+      <option value="">-</option>
+      <option value="me" {% if selected_waiting == "me" %}selected{% endif %}>me</option>
+      <option value="everyone" {% if selected_waiting == "everyone" %}selected{% endif %}>everyone</option>
+    </select>
+  </label>
+  <noscript><button type="submit" class="tb-btn">Apply</button></noscript>
+</form>
+{# Outside the filters form (it has no name either), so a filter change never sends the search text; the
+   query is kept in sessionStorage instead. Outside #board-live, so the live refresh never replaces it. #}
+<div class="search" hidden>
+  <input type="search" id="search" aria-label="Search tasks" placeholder="Search id, title and text"
+         autocomplete="off" spellcheck="false">
+</div>
+{% endblock %}
+{% block content %}
+<div id="board-live" class="board-live">
+{% if problems %}
+<section class="problems tb-message tb-message-error">
+  <h2>Problems ({{ problems|length }})</h2>
+  <ul>{% for p in problems %}<li>{{ p }}</li>{% endfor %}</ul>
+</section>
+{% endif %}
+<div class="board">
+  {% for state, cards in columns.items() %}
+  <section class="column" data-state="{{ state }}">
+    <h2>{{ state }} <span class="count">{{ cards|length }}</span></h2>
+    {% for c in cards %}
+    <a class="card prio-{{ c.priority or 'none' }}{% if c.broken %} broken{% endif %}{% if c.waiting_me %} waiting-user{% endif %}"
+       data-search="{{ c.search }}" href="{{ url_for('task', source_name=c.source, state=c.state, file_name=c.file) }}">
+      <div class="card-head">
+        <span class="id">{{ c.id }}</span>
+        {% if c.broken %}<span class="tb-badge tb-badge-error">broken</span>{% endif %}
+        {% if c.waiting_me %}<span class="tb-badge tb-badge-accent">waiting on you</span>{% endif %}
+      </div>
+      <div class="title">{{ c.title }}</div>
+      <div class="meta tb-muted">
+        {% if c.type %}<span>{{ c.type }}</span>{% endif %}
+        {% if c.priority %}<span>{{ c.priority }}</span>{% endif %}
+        {% if c.owner %}<span>owner {{ c.owner }}</span>{% endif %}
+        {% if sources|length > 1 %}<span>{{ c.source }}</span>{% endif %}
+        {% if c.waiting_on and not c.waiting_me %}<span>waiting on {{ c.waiting_on }}</span>{% endif %}
+        {% if c.blocked_by %}<span>blocked by {{ c.blocked_by|join(', ') }}</span>{% endif %}
+        {% if c.updated %}<span>{{ c.updated }}</span>{% endif %}
+      </div>
+      {% if c.last_log %}<div class="log">{{ c.last_log }}</div>{% endif %}
+    </a>
+    {% endfor %}
+  </section>
+  {% endfor %}
+</div>
+</div>
+{% endblock %}

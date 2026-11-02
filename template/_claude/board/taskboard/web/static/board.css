@@ -1,0 +1,213 @@
+/*
+ * Task board: only the board's own layout. Colours, type, forms, buttons, messages and badges come from the
+ * shared stylesheet (base.css); use its var(--tb-...) tokens
+ * here, never a colour literal.
+ */
+
+.board-main { max-width: none; }
+
+/* Filters in the header */
+.filters { gap: var(--tb-space-3) var(--tb-space-4); }
+.filters .tb-field { flex-direction: row; align-items: center; gap: var(--tb-space-2); }
+.filters .check { display: inline-flex; align-items: center; gap: var(--tb-space-2); color: var(--tb-text-muted); }
+.filters .check input { min-height: auto; }
+
+/* Notice of a change the page could not show in place (or a moved or deleted task) */
+.changed {
+  padding: var(--tb-space-2) var(--tb-space-4);
+  background: var(--tb-surface-raised);
+  border-bottom: 1px solid var(--tb-border);
+  border-left: 4px solid var(--tb-accent);
+}
+
+/* Problems panel */
+.problems h2 { font-size: var(--tb-text-md); margin: 0 0 var(--tb-space-1); }
+.problems ul { margin: 0; padding-left: var(--tb-space-5); }
+
+/* Columns and cards */
+.board {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(220px, 1fr);
+  gap: var(--tb-space-3);
+  overflow-x: auto;
+  align-items: start;
+  padding-bottom: var(--tb-space-2);
+}
+.column {
+  background: var(--tb-surface);
+  border: 1px solid var(--tb-border);
+  border-radius: var(--tb-radius-md);
+  padding: var(--tb-space-2);
+  min-height: 80px;
+}
+.column h2 {
+  font-size: var(--tb-text-sm);
+  margin: var(--tb-space-1) var(--tb-space-1) var(--tb-space-2);
+  color: var(--tb-text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.count { font-weight: 400; }
+.card {
+  display: block;
+  background: var(--tb-surface-raised);
+  border: 1px solid var(--tb-border);
+  border-left: 4px solid var(--tb-border);
+  border-radius: var(--tb-radius-sm);
+  padding: var(--tb-space-2) var(--tb-space-2);
+  margin-bottom: var(--tb-space-2);
+  color: var(--tb-text);
+  font-size: var(--tb-text-sm);
+}
+.card:hover { border-color: var(--tb-primary); text-decoration: none; }
+.card.prio-high { border-left-color: var(--tb-negative); }
+.card.prio-medium { border-left-color: var(--tb-warning); }
+.card.prio-low { border-left-color: var(--tb-positive); }
+.card.broken { border-left-color: var(--tb-negative); border-style: dashed solid dashed solid; }
+.card-head { display: flex; gap: var(--tb-space-2); align-items: center; }
+.id { font-weight: 700; color: var(--tb-link); }
+.title { margin: 2px 0 var(--tb-space-1); color: var(--tb-text); overflow-wrap: anywhere; }
+.meta { display: flex; flex-wrap: wrap; gap: var(--tb-space-1) var(--tb-space-2); font-size: 0.75rem; }
+.log {
+  margin-top: var(--tb-space-1);
+  padding-top: var(--tb-space-1);
+  border-top: 1px dashed var(--tb-border);
+  font-size: 0.75rem;
+  color: var(--tb-text-muted);
+  overflow-wrap: anywhere;
+}
+
+/* Keyword search in the header (shown by board.js): from 960px at the right end of the header row, taking the
+   free space up to a maximum (brand, filters and a 14rem search fit in one row from about 820px); on a narrower
+   window a full-width row of its own below the brand and filters */
+.search { flex: 1 1 100%; min-width: 0; }
+.search input { width: 100%; }
+@media (min-width: 960px) {
+  .search { flex: 1 1 14rem; max-width: 32rem; margin-left: auto; }
+}
+.card[hidden] { display: none; }
+
+/* Phone width: the columns stack and the page scrolls */
+@media (max-width: 719px) {
+  .board { grid-auto-flow: row; grid-template-columns: minmax(0, 1fr); overflow-x: visible; }
+}
+
+/* Desktop width: the board fills the window below the header and each column scrolls on its own */
+@media (min-width: 720px) {
+  body[data-mode="board"] {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
+  }
+  body[data-mode="board"] > * { flex: none; }
+  body[data-mode="board"] > .board-main {
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    padding-bottom: var(--tb-space-3);
+  }
+  .board-live { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+  .board-live > .problems { flex: none; max-height: 30vh; overflow-y: auto; }
+  .board {
+    flex: 1 1 auto;
+    min-height: 0;
+    grid-template-rows: minmax(0, 1fr);
+    align-items: stretch;
+  }
+  .column { min-height: 0; overflow-y: auto; padding-top: 0; }
+  .column h2 {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    margin: 0 calc(-1 * var(--tb-space-2)) var(--tb-space-2);
+    padding: var(--tb-space-2) var(--tb-space-3) var(--tb-space-1);
+    background: var(--tb-surface);
+  }
+}
+
+/* Task detail */
+.detail { max-width: 900px; margin: 0 auto; }
+.detail h1 { margin: var(--tb-space-1) 0; }
+table.header { border-collapse: collapse; margin: var(--tb-space-2) 0 var(--tb-space-4); }
+table.header th, table.header td { text-align: left; padding: 2px var(--tb-space-3) 2px 0; vertical-align: top; }
+table.header th { color: var(--tb-text-muted); font-weight: 500; }
+.input h2 { margin-top: 0; }
+.input form { margin-bottom: var(--tb-space-3); }
+.input label { display: block; margin-bottom: var(--tb-space-1); }
+.input textarea { display: block; width: 100%; margin-bottom: var(--tb-space-2); }
+.input .form-note { margin: 0 0 var(--tb-space-2); }
+.input .answering-as {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--tb-space-2);
+  margin: 0 0 var(--tb-space-2) 0;
+  color: var(--tb-text-muted);
+}
+.input label .tb-badge { vertical-align: middle; }
+
+/* A question with options: one button per option, the recommended one in the primary colour */
+.input .options { list-style: none; margin: 0 0 var(--tb-space-2); padding: 0; }
+.input .options li { margin-bottom: var(--tb-space-1); }
+.input .option-btn {
+  width: 100%;
+  justify-content: flex-start;
+  text-align: left;
+  gap: var(--tb-space-2);
+  background: var(--tb-surface-raised);
+  border-color: var(--tb-border);
+  color: var(--tb-text);
+  font-weight: 400;
+}
+.input .option-btn:hover { background: var(--tb-surface-raised); border-color: var(--tb-primary); color: var(--tb-text); }
+.input .option-recommended { border-color: var(--tb-primary); }
+.input .option-letter { font-weight: 600; color: var(--tb-primary); }
+.input .option-mark { margin-left: auto; font-size: var(--tb-text-sm); color: var(--tb-accent); }
+
+/* Who this browser answers as (only with people in board.json) */
+.you { font-size: var(--tb-text-sm); white-space: nowrap; }
+/* The periodic update's state (tb serve) */
+.update-banner { font-size: var(--tb-text-sm); color: var(--tb-text-muted); overflow-wrap: anywhere; }
+.update-banner.warn { color: var(--tb-warning); }
+.update-banner.error { color: var(--tb-negative); }
+.body h2 { border-bottom: 1px solid var(--tb-border); padding-bottom: 2px; }
+.body li { overflow-wrap: anywhere; }
+
+/* Dark/light switch at the right end of the header */
+.theme-toggle {
+  margin-left: auto;
+  min-height: 30px;
+  padding: 0 var(--tb-space-3);
+  border: 1px solid var(--tb-border);
+  border-radius: 999px;
+  background: var(--tb-surface-raised);
+  color: var(--tb-text-muted);
+  font-size: var(--tb-text-sm);
+  cursor: pointer;
+}
+.theme-toggle:hover { color: var(--tb-text); border-color: var(--tb-text-muted); }
+@media (min-width: 960px) {
+  .search + .theme-toggle { margin-left: 0; }
+}
+
+/* Plan view (read-only): Markdown tables, quotes and lists */
+.plan .body table { border-collapse: collapse; margin: 0 0 var(--tb-space-3); display: block; overflow-x: auto; }
+.plan .body th, .plan .body td {
+  border: 1px solid var(--tb-border);
+  padding: var(--tb-space-1) var(--tb-space-2);
+  text-align: left;
+  vertical-align: top;
+}
+.plan .body th { background: var(--tb-surface-raised); }
+.plan .body blockquote {
+  margin: 0 0 var(--tb-space-3);
+  padding: var(--tb-space-1) var(--tb-space-3);
+  border-left: 4px solid var(--tb-border);
+  color: var(--tb-text-muted);
+}
+.plan .body ul, .plan .body ol { margin: 0 0 var(--tb-space-3); }

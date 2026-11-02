@@ -1,0 +1,32 @@
+{
+  "_doc": "Task board config; README.md next to this file explains every key. Paths are relative to the repo root. main_branch is the {{#if git}}git main branch{{else}}SVN main line (^/trunk){{/if}} (task files change only there).",
+  "title": "{{board_title}}",
+  "vcs": "{{vcs}}",
+  "main_branch": "{{main}}",
+  "ownership": "{{#if open}}open{{else}}strict{{/if}}",
+  "plans_dir": "AI/Plans",
+  "types": {{types_json}},
+  "type_rules": {
+    "research": {
+      "moves": {
+        "03-Implementation": ["01-Refinement", "02-Ready", "05-UserReview", "07-Done", "08-Dropped"],
+        "05-UserReview": ["01-Refinement", "02-Ready", "03-Implementation", "07-Done", "08-Dropped"]
+      },
+      "refuse": {"03-Implementation": ["04-CodeReview", "06-Deploy"], "05-UserReview": ["04-CodeReview", "06-Deploy"]},
+      "no_branch": true,
+      "tokens_from": ["03-Implementation", "05-UserReview"]
+    }
+  },
+  "roles": {{roles_json}},
+  "people": {{people_json}},
+  "default_owner": "{{user}}",
+  "host": "127.0.0.1",
+  "port": {{port}},
+  "refresh_seconds": 5,
+  "watch": {"quiet_seconds": 120, "poll_seconds": 5, "update_seconds": 60, "board_idle_minutes": 15},
+  "handover": {"path": "AI/SupervisorHandover.md", "max_lines": 60, "max_chars": 6000, "max_line_chars": 160},
+  "reload": {"budget_bytes": 20000},
+  "sources": [
+    {"name": "tasks", "root": "AI/Tasks", "prefix": "T", "editable": true}
+  ]
+}

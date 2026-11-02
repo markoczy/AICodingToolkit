@@ -1,0 +1,4 @@
+local.json
+log/
+.pytest_cache/
+__pycache__/

@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}{{ file }} - {{ board_title }}{% endblock %}
+{% block nav %}<nav class="tb-nav"><a href="{{ url_for('board') }}">Back to the board</a></nav>{% endblock %}
+{% block content %}
+<article class="detail plan">
+  <p class="where tb-muted">{{ path }} · read-only</p>
+  <section class="body">{{ body }}</section>
+</article>
+{% endblock %}

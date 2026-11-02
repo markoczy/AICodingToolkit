@@ -1,0 +1,10 @@
+# AI coding harness: append these lines to the project's .gitignore
+# Local agent state (session worktrees, locks); only .claude/agents, skills, hooks and board are shared
+.claude/worktrees/
+.claude/*.lock
+.claude/settings.local.json
+# Agent report files and draft plans (untracked, AI/Methodology.md "Delegation")
+AI/Temp/
+# Python caches of the board tool
+__pycache__/
+.pytest_cache/

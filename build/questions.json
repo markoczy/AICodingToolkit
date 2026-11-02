@@ -1,0 +1,123 @@
+{
+  "_doc": "The questions the harness-setup skill asks, in order. `when` is a Python expression over the earlier answers; a question whose `when` is false is skipped and its answer dropped. `default` may be a plain value or {by: <answer id>, values: {...}, else: ...}. `example` feeds `build.py --example`.",
+  "questions": [
+    {
+      "id": "project_name",
+      "prompt": "What is the project called? (shown in CLAUDE.md and the board header)",
+      "type": "text",
+      "example": {"git": "Example Project", "svn": "Example Viewer"}
+    },
+    {
+      "id": "vcs",
+      "prompt": "Which version control does the project use?",
+      "type": "choice",
+      "options": [
+        {"value": "git", "label": "git (branches, worktrees, pull requests with gh)"},
+        {"value": "svn", "label": "Subversion (^/trunk, ^/branches, working copies next to the checkout, landing through sv.py)"}
+      ]
+    },
+    {
+      "id": "main_branch",
+      "prompt": "Name of the main line (git: master or main)",
+      "type": "text",
+      "pattern": "[A-Za-z0-9._/-]+",
+      "default": {"by": "vcs", "values": {"git": "master", "svn": "trunk"}},
+      "when": "vcs == 'git'"
+    },
+    {
+      "id": "mode",
+      "prompt": "Who works on the board?",
+      "type": "choice",
+      "options": [
+        {"value": "single", "label": "Single user: one person, one supervisor session, no coordinator sessions"},
+        {"value": "multi", "label": "Multi-user: several developers, each with a coordinator session next to the one supervisor"}
+      ],
+      "example": {"git": "single", "svn": "multi"}
+    },
+    {
+      "id": "user_name",
+      "prompt": "Your name as written in task files (the supervisor's user and default task owner; one word)",
+      "type": "text",
+      "pattern": "[A-Za-z][A-Za-z0-9_-]*",
+      "example": "Aleistar"
+    },
+    {
+      "id": "people",
+      "prompt": "Everyone who answers questions and owns tasks, including you (one word each, comma separated)",
+      "type": "list",
+      "pattern": "[A-Za-z][A-Za-z0-9_-]*",
+      "when": "mode == 'multi'",
+      "example": ["Aleistar", "Robin"]
+    },
+    {
+      "id": "ownership",
+      "prompt": "How strict is task ownership?",
+      "type": "choice",
+      "when": "mode == 'multi'",
+      "options": [
+        {"value": "open", "label": "Open: anyone may refine, start-approve and answer any task and change its owner (owner = creator and addressee, no special rights)"},
+        {"value": "strict", "label": "Strict: the owner decides a task's questions, plan and start; only the current owner transfers it; a coordinator acts on its dev's tasks only"}
+      ],
+      "example": "open"
+    },
+    {
+      "id": "analyst",
+      "prompt": "Is there data whose numbers can change with a code change (computed values, scores, stored rows)? Then the harness adds the analyst agent and asks reviewers to measure data impact before/after.",
+      "type": "bool",
+      "default": false,
+      "example": {"git": true, "svn": false}
+    },
+    {
+      "id": "deploy",
+      "prompt": "What does the 06-Deploy state mean?",
+      "type": "choice",
+      "options": [
+        {"value": "production", "label": "Deploy to production and check the production data or behaviour"},
+        {"value": "test", "label": "Deploy to a test server and verify there; production releases are separate ops tasks"},
+        {"value": "none", "label": "No deployment: a landed task goes straight to 07-Done"}
+      ],
+      "example": {"git": "production", "svn": "test"}
+    },
+    {
+      "id": "task_types",
+      "prompt": "Task types (comma separated; keep research and ops, they have their own flow and meaning)",
+      "type": "list",
+      "pattern": "[a-z][a-z0-9-]*",
+      "default": ["bug", "feature", "refactor", "docs", "research", "ops"],
+      "example": {"git": ["bug", "feature", "data", "refactor", "docs", "research", "ops"], "svn": ["feature", "bug", "refactor", "spike", "docs", "research", "ops"]}
+    },
+    {
+      "id": "color_primary",
+      "prompt": "Board colour 1, the primary (buttons, links), as #rrggbb",
+      "type": "text",
+      "pattern": "#[0-9a-fA-F]{6}",
+      "default": "#8b5cf6"
+    },
+    {
+      "id": "color_accent",
+      "prompt": "Board colour 2, the accent (badges, highlights), as #rrggbb",
+      "type": "text",
+      "pattern": "#[0-9a-fA-F]{6}",
+      "default": "#2dd4bf"
+    },
+    {
+      "id": "port",
+      "prompt": "Port of the local web board",
+      "type": "int",
+      "default": 5070
+    },
+    {
+      "id": "python",
+      "prompt": "The command that runs Python 3.10+ in this project (python, python3, py -3, a venv path)",
+      "type": "text",
+      "default": "python"
+    },
+    {
+      "id": "confidential",
+      "prompt": "What must never end up in versioned files, commit messages or agent reports? (one line; it goes into the confidentiality rules)",
+      "type": "text",
+      "default": "host names, IP addresses, credentials, customer data and private file names",
+      "example": {"git": "host names, IP addresses, trading-course or methodology names, private file names (P__*, PRIVATE_*) and credentials", "svn": "host names, credentials, passwords and customer files"}
+    }
+  ]
+}

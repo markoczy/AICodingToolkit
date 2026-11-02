@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}{{ header.id or file }} - {{ board_title }}{% endblock %}
+{% block nav %}<nav class="tb-nav"><a href="{{ url_for('board') }}">Back to the board</a></nav>{% endblock %}
+{% macro answering_as() %}
+{% if people %}
+<p class="answering-as tb-muted">Answering as {% if me %}{{ me }}{% else %}<strong>not set</strong>: run <code>python .claude/board/tb.py me &lt;name&gt;</code> in this checkout, then reload{% endif %}</p>
+{% endif %}
+{% endmacro %}
+{% block content %}
+<article class="detail">
+  <div id="task-head">
+  <h1>{{ header.id or file }}{% if header.title %}: {{ header.title }}{% endif %}</h1>
+  <p class="where tb-muted">{{ source.name }} / {{ state }} / {{ file }}{% if owner %} · {{ owner }}{% endif %}</p>
+  </div>
+
+  {% if message %}<p class="tb-message tb-message-ok">{{ message }}</p>{% endif %}
+  {% if error %}<p class="tb-message tb-message-error">{{ error }}</p>{% endif %}
+
+  <div id="task-live" data-task-url="{{ url_for('task', source_name=source.name, state=state, file_name=file) }}"
+       data-locate-url="{{ url_for('locate', source_name=source.name, task_id=task_id) }}"
+       data-state="{{ state }}" data-hash="{{ file_hash }}">
+  {% if problems %}
+  <section class="problems tb-message tb-message-error">
+    <h2>Problems</h2>
+    <ul>{% for p in problems %}<li>{{ p }}</li>{% endfor %}</ul>
+  </section>
+  {% endif %}
+
+  {% if header %}
+  <table class="header">
+    {% for key, value in header.items() %}
+    <tr><th>{{ key }}</th><td>{% if key == 'plan' and plan_url %}<a href="{{ plan_url }}">{{ value }}</a>{% elif value is none %}-{% elif value is sequence and value is not string %}{{ value|join(', ') or '-' }}{% else %}{{ value }}{% endif %}</td></tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+
+  <section class="input tb-card">
+    <h2>Your input</h2>
+    {% if block_reason %}
+    <p class="tb-muted">{{ block_reason }}</p>
+    {% else %}
+    {% for q in questions %}
+    {% set kept = keep.kind == 'answer' and keep.question == q.id %}
+    {% if q.options %}
+    <form method="post" action="{{ url_for('answer', source_name=source.name, state=state, file_name=file) }}"
+          data-form="answer:{{ q.id }}" class="option-form">
+      <label for="comment-{{ q.id }}"><strong>{{ q.id }}</strong> <span class="tb-badge{% if q.for == 'user' %} tb-badge-accent{% endif %}">for {{ q.for }}</span> {{ q.text|plan_links }}</label>
+      <ul class="options">
+        {% for o in q.options %}
+        <li><button type="submit" name="option" value="{{ o.letter }}" class="tb-btn option-btn{% if o.recommended %} option-recommended{% endif %}"><span class="option-letter">{{ o.letter }}</span> <span class="option-text">{{ o.text }}</span>{% if o.recommended %} <span class="option-mark">recommended</span>{% endif %}</button></li>
+        {% endfor %}
+      </ul>
+      <textarea id="comment-{{ q.id }}" name="comment" rows="2" maxlength="{{ max_length }}" placeholder="Optional comment, sent with the option you press">{% if kept %}{{ keep.text }}{% endif %}</textarea>
+      <input type="hidden" name="question" value="{{ q.id }}">
+      <input type="hidden" name="hash" value="{{ file_hash }}">
+      <input type="hidden" name="token" value="{{ token }}">
+      {{ answering_as() }}
+    </form>
+    {% else %}
+    <form method="post" action="{{ url_for('answer', source_name=source.name, state=state, file_name=file) }}"
+          data-form="answer:{{ q.id }}">
+      <label for="answer-{{ q.id }}"><strong>{{ q.id }}</strong> <span class="tb-badge{% if q.for == 'user' %} tb-badge-accent{% endif %}">for {{ q.for }}</span> {{ q.text|plan_links }}</label>
+      <textarea id="answer-{{ q.id }}" name="answer" rows="3" maxlength="{{ max_length }}" required>{% if kept %}{{ keep.text }}{% endif %}</textarea>
+      <input type="hidden" name="question" value="{{ q.id }}">
+      <input type="hidden" name="hash" value="{{ file_hash }}">
+      <input type="hidden" name="token" value="{{ token }}">
+      {{ answering_as() }}
+      <button type="submit" class="tb-btn">Answer {{ q.id }}</button>
+    </form>
+    {% endif %}
+    {% endfor %}
+    <form method="post" action="{{ url_for('note', source_name=source.name, state=state, file_name=file) }}"
+          data-form="note">
+      <label for="note">Add a note (goes into the Log; the supervisor picks it up)</label>
+      <textarea id="note" name="note" rows="3" maxlength="{{ max_length }}" required>{% if keep.kind == 'note' %}{{ keep.text }}{% endif %}</textarea>
+      <input type="hidden" name="hash" value="{{ file_hash }}">
+      <input type="hidden" name="token" value="{{ token }}">
+      {{ answering_as() }}
+      <button type="submit" class="tb-btn">Add note</button>
+    </form>
+    {% endif %}
+  </section>
+
+  <section class="body">{{ body }}</section>
+  </div>
+</article>
+{% endblock %}

@@ -1,0 +1,16 @@
+# AI coding harness: svn:ignore properties to set once in the trunk checkout (then commit).
+# Run from the checkout root; each line sets the property on one folder.
+
+svn propset svn:ignore "Temp" AI
+svn propset svn:ignore "local.json
+log
+.pytest_cache
+__pycache__" .claude/board
+svn propset svn:ignore "__pycache__
+.pytest_cache" .claude/svn
+svn propset svn:ignore "worktrees
+settings.local.json
+*.lock" .claude
+
+# The agents' working copies live NEXT to the checkout (<checkout>.worktrees/), so they never appear in
+# `svn status`. The nine AI/Tasks state folders are versioned as folders; the .gitkeep files inside are harmless.

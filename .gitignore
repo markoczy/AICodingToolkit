@@ -1,0 +1,8 @@
+dist/
+out/
+__pycache__/
+.pytest_cache/
+*.pyc
+.claude/settings.local.json
+template/_claude/board/log/
+template/_claude/board/local.json

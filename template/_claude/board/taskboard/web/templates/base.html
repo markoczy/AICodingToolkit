@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}{{ board_title }}{% endblock %}</title>
+{# The theme is set before the stylesheets load, so a light page never flashes dark (board.js switches it). #}
+<script>try { if (localStorage.getItem("taskBoardTheme") === "light") { document.documentElement.dataset.theme = "light"; } } catch (e) {}</script>
+<link rel="stylesheet" href="{{ url_for('static', filename='base.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='board.css') }}">
+</head>
+<body data-mode="{{ mode }}" data-refresh-ms="{{ refresh_ms }}" data-fingerprint="{{ fingerprint }}"
+      data-fingerprint-url="{{ url_for('api_fingerprint') }}">
+<header class="tb-header">
+  <a class="tb-brand" href="{{ url_for('board') }}">{{ board_title }}</a>
+  {% if people %}<span class="you tb-muted" title="Who the board writes as: this checkout's person (tb me)">You: {{ me or "not set" }}</span>{% endif %}
+  {% if updating %}<span id="update-banner" class="update-banner {{ update_level }}" data-update-url="{{ url_for('api_update') }}"
+        title="Periodic update of the checkout"{% if not update_text %} hidden{% endif %}>{{ update_text }}</span>{% endif %}
+  {% if commits_text %}<span class="commits-note tb-muted" title="Answers and notes written here are committed by the board (local.json board_commits)">{{ commits_text }}</span>{% endif %}
+  {% block nav %}{% endblock %}
+  <button type="button" id="theme-toggle" class="theme-toggle" hidden>Light mode</button>
+</header>
+<div id="changed" class="changed" hidden>
+  The task files changed on disk. <a href="">Reload</a> to see the current version.
+</div>
+<main class="tb-main board-main">
+{% block content %}{% endblock %}
+</main>
+<script src="{{ url_for('static', filename='board.js') }}"></script>
+</body>
+</html>

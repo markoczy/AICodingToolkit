@@ -1,0 +1,40 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash({{python}} .claude/board/tb.py:*)",
+      "Bash({{python}} -m pytest .claude/board/tests:*)",
+{{#if git}}
+      "Bash(git status:*)", "Bash(git log:*)", "Bash(git diff:*)", "Bash(git worktree list:*)",
+      "Bash(gh pr view:*)", "Bash(gh pr list:*)", "Bash(gh pr diff:*)"
+{{else}}
+      "Bash({{python}} -m pytest .claude/svn/tests:*)",
+      "Bash({{python}} .claude/svn/sv.py wt list:*)",
+      "Bash({{python}} .claude/svn/sv.py branch list:*)",
+      "Bash({{python}} .claude/svn/sv.py diff:*)",
+      "Bash(svn status:*)", "Bash(svn info:*)", "Bash(svn log:*)", "Bash(svn diff:*)"
+{{/if}}
+    ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {"matcher": "startup|resume|compact|clear",
+       "hooks": [{"type": "command",
+                  "command": "{{python}} -c \"import os, runpy; runpy.run_path(os.path.join(os.environ['CLAUDE_PROJECT_DIR'], '.claude', 'hooks', 'reload.py'), run_name='__main__')\""}]}
+{{#if svn}}
+    ],
+    "WorktreeCreate": [
+      {"hooks": [{"type": "command",
+                  "command": "{{python}} -c \"import os, runpy, sys; sys.argv = ['sv.py', 'hook', 'worktree-create']; runpy.run_path(os.path.join(os.environ['CLAUDE_PROJECT_DIR'], '.claude', 'svn', 'sv.py'), run_name='__main__')\""}]}
+    ],
+    "WorktreeRemove": [
+      {"hooks": [{"type": "command",
+                  "command": "{{python}} -c \"import os, runpy, sys; sys.argv = ['sv.py', 'hook', 'worktree-remove']; runpy.run_path(os.path.join(os.environ['CLAUDE_PROJECT_DIR'], '.claude', 'svn', 'sv.py'), run_name='__main__')\""}]}
+    ],
+    "PreToolUse": [
+      {"matcher": "Bash|PowerShell",
+       "hooks": [{"type": "command",
+                  "command": "{{python}} -c \"import os, runpy, sys; sys.argv = ['sv.py', 'hook', 'guard']; runpy.run_path(os.path.join(os.environ['CLAUDE_PROJECT_DIR'], '.claude', 'svn', 'sv.py'), run_name='__main__')\""}]}
+{{/if}}
+    ]
+  }
+}
