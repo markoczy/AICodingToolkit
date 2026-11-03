@@ -1032,6 +1032,7 @@ def run_watch(config, monkeypatch, fake_time, update_fn, interval=10, **kwargs):
     monkeypatch.setattr(watch.time, "sleep", fake_time.sleep)
     updater = Updater(config, interval, clock=fake_time.clock, update=update_fn)
     # No checkout here: the revision comes from the fake update results only.
+    kwargs.setdefault("clock", fake_time.clock)
     return watch.watch(config, start_server=False, updater=updater, revision_of=lambda c: None,
                        own_of=lambda c, old, new: False, changed_of=lambda c, old, new: None, **kwargs)
 
@@ -1090,6 +1091,7 @@ class TestWatch:
             "  T005 new task: Answered (01-Refinement)",
             "  T003 Q4 open, for supervisor",
             "  T004 now waiting on supervisor (04-CodeReview)",
+            "        state 04-CodeReview, waiting on supervisor, owner -",
             "  T005 Robin (board): answered Q2.",
         ]
         assert "Own question" not in out and "T001 Q" not in incoming
@@ -1109,15 +1111,17 @@ class TestWatch:
             return updates.pop(0)() if updates else UpdateResult("ok", revision=5)
 
         def arrive():
-            write_task(config, "T002", "New from b", review="rev")
+            write_task(config, "T002", "New from b", review="rev", waiting="supervisor")
             return UpdateResult("changed", revision_before=5, revision=9, changed=[("U", "AI/Tasks")])
         fake = FakeTime(actions={4: lambda: updates.append(arrive)})
         monkeypatch.setattr(watch.time, "sleep", fake.sleep)
         updater = Updater(config, 10, clock=fake.clock, update=fake_update)
-        assert watch.watch(config, start_server=False, updater=updater, revision_of=lambda c: None) == 0
+        assert watch.watch(config, start_server=False, updater=updater, revision_of=lambda c: None,
+                           clock=fake.clock) == 0
         out = capsys.readouterr().out
         assert "svn update of AI every 10 s" in out
-        assert "INCOMING (svn update, r5 -> r9):\n  T002 new task: New from b (00-Conception)\n" in out
+        assert ("INCOMING (svn update, r5 -> r9):\n  T002 new task: New from b (00-Conception)\n"
+                "  T002 now waiting on supervisor (00-Conception)\n") in out
         assert "T001" not in out.split("INCOMING")[1]
 
     def test_changes_without_update_are_not_incoming(self, plain_config, monkeypatch, capsys):
@@ -1132,7 +1136,8 @@ class TestWatch:
 
     def test_a_burst_of_commits_gives_one_report(self, plain_config, monkeypatch, capsys):
         config = plain_config
-        steps = {12: lambda: write_task(config, "T001", "First"), 16: lambda: write_task(config, "T002", "Second")}
+        steps = {12: lambda: write_task(config, "T001", "First", waiting="supervisor"),
+                 16: lambda: write_task(config, "T002", "Second", waiting="supervisor")}
         pending = []
 
         revs = [5]

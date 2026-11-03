@@ -22,7 +22,7 @@ defaults are in `build/questions.json`; the builder is `build/build.py`. Never a
    use those and ask only what is missing or what they want to change.
 4. **Advanced settings** last, as one table, not one by one: every question with `advanced: true`, with its
    default and a one-line meaning taken from its prompt (compaction window and idle compaction of every session,
-   the watcher's quiet and update seconds, the board's idle minutes, the reload budget). Say that the defaults
+   the watcher's quiet, hold and update seconds, the board's idle minutes, the reload budget). Say that the defaults
    suit most projects and ask whether they are fine or which to change; record only the ones the user changes,
    the rest take the default. Explain a value further only when asked (e.g. the compaction window: every turn
    re-reads the whole context, so a small window keeps a long-lived session cheap, a large one lets an executor

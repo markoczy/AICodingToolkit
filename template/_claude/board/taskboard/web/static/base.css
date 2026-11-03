@@ -200,6 +200,21 @@ input:focus, select:focus, textarea:focus { border-color: var(--tb-primary); out
   color: var(--tb-bg);
   text-decoration: none;
 }
+/* A secondary button: outlined, for actions that are not the page's main one */
+.tb-btn-quiet {
+  min-height: 30px;
+  padding: 0 var(--tb-space-3);
+  background: var(--tb-surface-raised);
+  border-color: var(--tb-border);
+  color: var(--tb-text);
+  font-size: var(--tb-text-sm);
+  font-weight: 500;
+}
+.tb-btn-quiet:hover { background: var(--tb-surface-raised); border-color: var(--tb-primary); color: var(--tb-text); }
+
+/* "Wake now" in the header: the watcher's wait ends at the next poll */
+.wake-form { display: inline-flex; align-items: center; gap: var(--tb-space-2); margin: 0; }
+.wake-note { font-size: var(--tb-text-sm); white-space: nowrap; }
 
 /* ---- Feedback ---- */
 

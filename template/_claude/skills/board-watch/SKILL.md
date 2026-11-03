@@ -19,8 +19,11 @@ It starts the web board if it isn't running (log: `.claude/board/log/server.log`
 {{#if git}}pulls `{{main}}` (`git fetch` + `git merge --ff-only`){{else}}runs `svn update` of `AI/` (never the code){{/if}} at start and every
 `watch.update_seconds` ({{update_seconds}} s), then sleeps until there is input for you: a new board Log line
 (`<name> (board):`) in any task source{{#if multiuser}}, or other devs' input that arrived with an update (INCOMING){{/if}}. It waits
-until nothing more arrives for `watch.quiet_seconds` ({{quiet_seconds}} s, so several answers come together), prints
-them and exits. The exit is what wakes you. While it sleeps it costs no model usage.
+until nothing more arrives for `watch.quiet_seconds` ({{quiet_seconds}} s) and at least `watch.hold_seconds`
+({{hold_seconds}} s) passed since the first input of the batch, so answers across several tasks come in one
+wake-up; then it prints the batch and exits. The exit is what wakes you. While it sleeps it costs no model usage. The
+board's **Wake now** button ends the wait at once: the output then starts with `WAKE NOW: requested by <name>`,
+even when nothing else is pending.
 
 - Don't use a polling loop, `sleep` loops or a monitor tool instead: they wake the session periodically and cost
   tokens while idle.
@@ -31,9 +34,10 @@ them and exits. The exit is what wakes you. While it sleeps it costs no model us
   it wakes you".{{#if multiuser}} Never set `board_commits` in this checkout (`tb me --board-commits` is for coordinators); the
   watcher prints a note if it finds it on.{{/if}}
 {{#if multiuser}}
-- Answers and notes a dev wrote on their own board (coordinator; their board commits them itself) arrive with an
-  update and wake it too (INCOMING), as do new tasks, new open questions for the supervisor and tasks that now
-  wait on the supervisor. Other commits don't wake it.
+- Input that arrives with an update (INCOMING) wakes it only when it is for you: a new open question for the
+  supervisor, or a task that now waits on the supervisor (an answer a dev wrote on their own board usually makes
+  its task wait on you). New tasks and devs' board lines on other tasks are listed when something else wakes
+  you, never a wake-up of their own. Other commits don't wake it.
 {{/if}}
 {{#if git}}
 - Your own uncommitted edits don't wake it: after a pull, INCOMING counts only tasks whose files changed
@@ -63,7 +67,11 @@ Output looks like:
 ```
 BOARD INPUT:
   T012: - 2026-10-20 {{user}} (board): answered Q2.
+        state 01-Refinement, waiting on supervisor, owner {{user}}
+        Q2: Export format: (a) CSV (b) JSON (c) both?
+        answer ({{user}}): (a)
   T015: - 2026-10-20 {{user}} (board): please do this one first
+        state 02-Ready, waiting on supervisor, owner {{user}}
 {{#if multiuser}}
 INCOMING ({{#if git}}git pull, 1a2b3c4 -> 5d6e7f8{{else}}svn update, r123 -> r127{{/if}}):
   T031 new task: Faster export (00-Conception)
@@ -75,17 +83,20 @@ WAITING ON SUPERVISOR:
   T012 Export to CSV (01-Refinement)
 ```
 
-Either section may be missing. For each task listed{{#if multiuser}} (a new task from another dev: read it with `tb show`; it
-belongs to that dev's coordinator unless it waits on you){{/if}}:
+Either section may be missing; `WAKE NOW: requested by <name> at <time>` comes first when the button was used.
+For each task listed{{#if multiuser}} (a new task from another dev: read it with `tb show`; it belongs to that dev's
+coordinator unless it waits on you){{/if}}:
 
-1. `tb show <id>` (answers are already in the file under the answerer's name: the question is marked answered,
-   a Decisions line was added, `waiting_on` is `supervisor` unless the user still owes another answer).
+1. The block under a task gives you its state, `waiting_on`, owner, and the question with its answer (already in
+   the file under the answerer's name, with a Decisions line); `tb show <id>` only when you need more than
+   that (the task's sections, other open questions).
 2. Act on it: an answer may unblock a move (`task-refine` -> 02-Ready), a start approval may let you start an
    executor (`task-delegate`), a note may change priority or scope (`tb set`, `tb section`), ask a follow-up
    (`tb ask`, with options), or need a reply to the user.
 3. Record what you did with `tb log <id> "..."` (or the move's own log line), and set `waiting_on` to whoever is
    next if no move did. Update `AI/SupervisorHandover.md`.
-4. `tb check`, then commit the board edits and yours together{{#if git}} and push{{/if}}: `tasks: board input T012, T015`.
+4. `tb done "board input T012, T015"`: the check, the commit of the task files and the handover{{#if git}} and the
+   push{{/if}} in one call (it prints the check's problems and commits nothing when there are any).
 
 Then **restart the watcher** (above) and tell the user in one or two lines what you did, only if it matters to
 them.

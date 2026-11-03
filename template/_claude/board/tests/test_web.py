@@ -1311,7 +1311,7 @@ class TestPlanView:
         html = response.get_data(as_text=True)
         assert response.status_code == 200
         assert "<h1>A plan</h1>" in html and "<table>" in html and "&lt;b&gt;x&lt;/b&gt;" in html
-        assert "<form" not in html and 'data-mode="plan"' in html
+        assert "<form" not in html.split("</header>", 1)[1] and 'data-mode="plan"' in html
 
     def test_links_in_a_plan_lead_to_tasks_and_plans(self, plan_client):
         html = plan_client.get("/plan/2610-01-A-Plan.md").get_data(as_text=True)

@@ -196,6 +196,18 @@ class Backend:
         """How a committed board write is reported: `committed (r12)` / `committed locally (a1b2c3d); push ...`."""
         raise NotImplementedError
 
+    # ---- `tb done`: the supervisor's commit of the task files ----
+
+    def commit_paths(self, config: dict, paths: list[str], message: str, push: bool = True) -> tuple:
+        """
+        Commit everything under the repo-relative paths (new files included: git `add -A`, svn `add --force`),
+        then push with git (unless push is False; svn commits reach the repository anyway). Returns (revision
+        text, note, error): the revision with a note (`pushed`, `not pushed (--no-push)`; "" for svn) on
+        success; revision None with an empty error when there was nothing to commit; None with the error when
+        a step failed; after a commit whose push failed, the revision with the error.
+        """
+        raise NotImplementedError
+
     def commit_revision_pattern(self) -> str:
         """The regex a revision text of commit_file matches (the web board passes it through a query string)."""
         raise NotImplementedError

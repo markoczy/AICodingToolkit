@@ -23,6 +23,7 @@ from ..store import apply_edit, content_hash, find_task_files, main_branch_block
 from ..textedit import MAX_INPUT_LENGTH, EditError, ForbiddenError, add_note, answer_question
 from ..update import banner
 from ..vcs import backend
+from ..watch import request_wake
 from .options import parse_options, question_texts
 from .render import link_paths, render_document, render_markdown
 
@@ -241,6 +242,28 @@ def create_app(config: dict, updater=None, activity: Activity | None = None, com
         return {"update_text": info["text"], "update_level": info["level"], "updating": updater is not None,
                 "commits_text": commits_text}
 
+    def wake_label() -> str:
+        """The header button: a coordinator checkout (board_commits on, `tb me` set) wakes its own session."""
+        me = current_person()
+        if config.get("board_commits") and me:
+            return f"Wake {me}'s session now"
+        return "Wake the supervisor now"
+
+    def wake_next() -> str:
+        """Where /wake sends the browser back to: this page (a re-rendered answer/note form: its task page)."""
+        if request.method == "GET":
+            return request.full_path.rstrip("?")
+        path = request.path
+        for suffix in ("/answer", "/note"):
+            if path.endswith(suffix):
+                return path[:-len(suffix)]
+        return "/"
+
+    @app.context_processor
+    def wake_context():
+        return {"wake_label": wake_label(), "wake_token": token,
+                "wake_requested": request.args.get("wake") == "requested", "wake_next": wake_next()}
+
     @app.before_request
     def check_host():
         name, port = split_host(request.host)
@@ -430,6 +453,24 @@ def create_app(config: dict, updater=None, activity: Activity | None = None, com
     @app.post("/task/<source_name>/<state>/<file_name>/note")
     def note(source_name: str, state: str, file_name: str):
         return post_edit(source_name, state, file_name, "note")
+
+    @app.post("/wake")
+    def wake():
+        """
+        "Wake now": write the marker `log/wake-now.json` as this checkout's person (`user` without people) and go
+        back to the page the button was on. The watcher deletes the marker and exits at its next poll; no task
+        file changes, nothing is committed.
+        """
+        if not hmac.compare_digest(request.form.get("token", ""), token):
+            abort(403, "The form is outdated (the board was restarted). Reload the page and press again.")
+        by = (current_person() if people else "user") or "user"
+        request_wake(config, by)
+        target = request.form.get("next", "/")
+        if not target.startswith("/") or target.startswith("//"):
+            target = "/"
+        base, _, query = target.partition("?")
+        params = [p for p in query.split("&") if p and not p.startswith("wake=")] + ["wake=requested"]
+        return redirect(f"{base}?{'&'.join(params)}")
 
     @app.get("/plan/<file_name>")
     def plan(file_name: str):

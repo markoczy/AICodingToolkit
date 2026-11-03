@@ -24,13 +24,15 @@ the operating manual. `tb` = `{{python}} .claude/board/tb.py`{{#if svn}}, `sv` =
    moves whose preconditions aren't met. Don't fight a refusal with `--force`; fix the cause (force only on the
    user's explicit word, with a reason).
 {{#if git}}
-4. **Check, commit, push.** After task edits: `tb check` must say "no problems"; then
-   `git add AI && git commit -m "tasks: ..."` with the suggested message, and `git push`. Commit the user's
-   board edits and the handover along with yours.
+4. **Check, commit, push.** After task edits: `tb done "<what changed>"` runs `tb check`, commits the task
+   files and the handover (`tasks: ...`) and pushes, in one call; it commits nothing while the check reports a
+   problem. By hand: `tb check`, `git add AI && git commit -m "tasks: ..."`, `git push`. Commit the user's board
+   edits along with yours.
 {{else}}
-4. **Check, then commit.** After task edits: `tb check` must say "no problems"; then commit the task files with
-   the suggested message: `svn commit AI -m "tasks: ..."`. Commit the user's board edits along with yours. New
-   task files must be `svn add`ed first (`svn add --force AI`). The handover goes into the same commits.
+4. **Check, then commit.** After task edits: `tb done "<what changed>"` runs `tb check`, adds new task files
+   and commits the task files and the handover (`tasks: ...`), in one call; it commits nothing while the check
+   reports a problem. By hand: `tb check`, `svn add --force AI`, `svn commit AI -m "tasks: ..."`. Commit the
+   user's board edits along with yours.
 {{/if}}
 5. **The user decides; you recommend.** Ask only what needs the user (approach, scope, priorities, task starts,
    judgment calls, `needs decision` verdicts), each as a numbered question in the task file

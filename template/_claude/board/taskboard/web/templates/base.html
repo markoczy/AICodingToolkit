@@ -18,6 +18,12 @@
         title="Periodic update of the checkout"{% if not update_text %} hidden{% endif %}>{{ update_text }}</span>{% endif %}
   {% if commits_text %}<span class="commits-note tb-muted" title="Answers and notes written here are committed by the board (local.json board_commits)">{{ commits_text }}</span>{% endif %}
   {% block nav %}{% endblock %}
+  <form class="wake-form" method="post" action="{{ url_for('wake') }}" title="End the watcher's wait at once: the session reads the board input now instead of after its quiet and hold periods">
+    <input type="hidden" name="token" value="{{ wake_token }}">
+    <input type="hidden" name="next" value="{{ wake_next }}">
+    <button type="submit" class="tb-btn tb-btn-quiet wake-btn">{{ wake_label }}</button>
+    {% if wake_requested %}<span class="wake-note tb-muted">Wake requested</span>{% endif %}
+  </form>
   <button type="button" id="theme-toggle" class="theme-toggle" hidden>Light mode</button>
 </header>
 <div id="changed" class="changed" hidden>

@@ -62,11 +62,21 @@ takes `review_field`; `textedit.set_owner(..., transfer=)` writes the strict (`t
 ## Config keys
 
 New in `board.json`: `vcs` (`git` | `svn`, default `git`; chooses the backend and the review field),
-`ownership` (`strict` | `open`, default `strict`), `watch.board_idle_minutes` (default 15). `main_branch`
-defaults to `master` for git and `trunk` for svn. Kept: `type_rules`, `handover`, `reload.budget_bytes`.
-Both new keys are validated like the others (a config error names the allowed values). `local.json`: `me`,
-`sources`, `reload`, `board_commits`, `role` (`"supervisor"` only; read by the reload hook, written by
-`tb me --role`).
+`ownership` (`strict` | `open`, default `strict`), `watch.board_idle_minutes` (default 15) and
+`watch.hold_seconds` (a whole number of seconds, default 0: the watcher reports a batch only after this long
+since its first input). `main_branch` defaults to `master` for git and `trunk` for svn. Kept: `type_rules`,
+`handover`, `reload.budget_bytes`. The new keys are validated like the others (a config error names the allowed
+values); the watch keys are optional, so older config files keep working. `local.json`: `me`, `sources`, `reload`, `board_commits`, `role` (`"supervisor"`
+only; read by the reload hook, written by `tb me --role`).
+
+The watcher's wake rules (`taskboard/watch.py`): only board lines, `question` and `waiting` INCOMING keys
+start a batch for the supervisor (`question` and `board` keys for a coordinator); `task`, `board` (supervisor)
+and `owned` (coordinator) keys are reported with the next wake. The board's `POST /wake` writes
+`log/wake-now.json` (`watch.request_wake`), which the watcher takes (`watch.take_wake`) and exits on at once.
+The report adds a block per task with board lines or a `waiting` key (state, waiting_on, owner, the answered
+questions with their answers: `watch.task_block`). `tb done "<message>"` (`cli.cmd_done`) runs the check and
+commits the update paths plus the handover file through `Backend.commit_paths` (git: `add -A`, commit, push;
+svn: `add --force`, commit).
 
 The other person's `board.json` template already uses `vcs`, `main_branch` and `ownership` with the same
 values; the board tests that load the packaged `board.json` skip while it holds template tags.

@@ -460,6 +460,41 @@ def git_commit(config: dict, path: str, message: str) -> tuple[str | None, str, 
     return (sha[:SHORT] if sha else None), "", False
 
 
+def git_commit_paths(config: dict, paths: list[str], message: str, push: bool = True) -> tuple:
+    """
+    `tb done`: `git add -A -- <paths>`, `git commit -m <message> -- <paths>`, `git push` (unless push is False).
+    (short commit id, note, "") on success; (None, "", "") when nothing under the paths changed; (None, "", the
+    error) when a step before the commit failed; (short id, note, the error) when the push failed.
+    """
+    existing = [p for p in paths if os.path.exists(os.path.join(config["repo_root_path"], p))]
+    if not existing:
+        return None, "", ""
+    try:
+        add = _run(config, ["add", "-A", "--", *existing], timeout=LOCAL_TIMEOUT_SECONDS)
+        if add.returncode != 0:
+            return None, "", f"git add failed: {first_error(add.stderr)}"
+        status = _run(config, ["status", "--porcelain=v1", "--", *existing], timeout=LOCAL_TIMEOUT_SECONDS)
+        if status.returncode != 0:
+            return None, "", f"git status failed: {first_error(status.stderr)}"
+        if not status.stdout.strip():
+            return None, "", ""
+        result = _run(config, ["commit", "--quiet", "-m", message, "--", *existing], timeout=COMMIT_TIMEOUT_SECONDS)
+        if result.returncode != 0:
+            return None, "", f"git commit failed: {first_error(result.stderr or result.stdout)}"
+        sha = head(config)
+        short = sha[:SHORT] if sha else "HEAD"
+        if not push:
+            return short, "not pushed (--no-push)", ""
+        pushed = _run(config, ["push", "--quiet"])
+    except subprocess.TimeoutExpired as exc:
+        return None, "", f"git {exc.cmd[1] if len(exc.cmd) > 1 else ''} timed out after {exc.timeout:g} s"
+    except OSError as exc:
+        return None, "", f"cannot run git: {exc}"
+    if pushed.returncode != 0:
+        return short, "", f"git push failed: {first_error(pushed.stderr)}; push by hand (git push)"
+    return short, "pushed", ""
+
+
 class GitBackend(Backend):
     name = "git"
     default_main_branch = "master"
@@ -541,3 +576,6 @@ class GitBackend(Backend):
 
     def commit_revision_pattern(self) -> str:
         return r"[0-9a-f]{7,40}"
+
+    def commit_paths(self, config: dict, paths: list[str], message: str, push: bool = True) -> tuple:
+        return git_commit_paths(config, paths, message, push)

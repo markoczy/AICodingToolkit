@@ -45,6 +45,7 @@ the watcher use only the standard library; the web board needs Flask and markdow
 | `section ID NAME --text/--file` | rewrite Problem, Approach or Acceptance |
 | `serve [--no-update] [--port N] [--idle-exit MIN] [--no-commit]` | run the web board; it updates the checkout periodically unless `--no-update`; `--idle-exit MIN` stops it after MIN minutes without any request (the watcher starts its board so; by hand: no idle exit); it commits its own answers and notes when `local.json` has `board_commits` on, unless `--no-commit` (see Board commits) |
 | `watch [--for DEV] [--once] [--quiet S] [--no-server] [--no-update] [--update-seconds N] [--port N] [--no-parent-check]` | update the checkout periodically, wait for input for the supervisor (with `--for DEV`: for that dev's coordinator, see Coordinator watcher), print it, exit; it stops when its session ends unless `--no-parent-check` (see Lifecycle) |
+| `done "MESSAGE" [--no-push]` | the supervisor's end of a wake: the check (any problem: printed, exit 1, nothing committed), then one commit of the task files (`watch.update_paths`, plus the `handover` file when it lies outside them) through the vcs backend: git `add -A` of those paths, commit and push (`--no-push`: commit only); svn `add --force` and commit. The message gets the prefix `tasks: ` unless it has it. Refused off the main line like every write; nothing to commit: says so, exit 0. Prints `committed a1b2c3d (tasks: ...); pushed` / `committed r57 (tasks: ...)` |
 
 States can be given as `02-Ready`, `02`, `2` or `ready`. Every write command takes `--by` (default
 `supervisor`), the actor of its Log line; a `--by` containing `(board)` is refused, so only the web board writes
@@ -69,8 +70,9 @@ Guarantees of every write command:
   needs `branch` and the review field (`tb move T012 codereview --pr 77` / `--rev 12`); landing from 04/05 into
   06/07 needs a `--reason` (e.g. 'merged PR #77 into master, reviewer approved' / 'merged into trunk r57,
   reviewer approved'), Done after a review needs `--tokens`;
-- it never commits; it prints a suggested commit message (`commit: tasks: ...`). The one exception is the web
-  board of a coordinator checkout that opted in (Board commits).
+- it never commits; it prints a suggested commit message (`commit: tasks: ...`). The exceptions are `tb done`
+  (the supervisor's own commit of the task files at the end of a wake) and the web board of a coordinator
+  checkout that opted in (Board commits).
 
 Exit codes: 0 ok, 1 refused or problems found, 2 config error.
 
@@ -93,6 +95,7 @@ Plain JSON; keys starting with `_` are ignored (use them for comments). Paths ar
 | `host`, `port` | `127.0.0.1`, `5070` | web board address; loopback only (no authentication); `tb serve --port N` / `tb watch --port N` override the port |
 | `refresh_seconds` | `5` | how often the web board checks for file changes |
 | `watch.quiet_seconds` | `120` | the watcher reports after this long without further input |
+| `watch.hold_seconds` | `0` | the watcher reports only when at least this long passed since the first input of the batch (a whole number of seconds; `0` = no hold); the hold starts when the first board line or waking INCOMING key is seen, so several answers over a slow conversation become one wake. `Wake now` overrides it; an update conflict or failure (exit 3) is never held |
 | `watch.poll_seconds` | `5` | how often the watcher looks at the files |
 | `watch.update_seconds` | `60` | seconds between the periodic updates of `tb serve` and `tb watch`; `0` = off; 1-9 are refused |
 | `watch.update_paths` | `["AI"]` | the task folders (relative, inside the repo, no `..`). git: the folders whose uncommitted edits pause the update (git updates the whole checkout); svn: the folders that are updated, never the code |
@@ -209,6 +212,11 @@ questions (`AI/Plans/....md`) link there; inside a plan, links to other plans an
 and to the task (by id). The header's "Light mode" / "Dark mode" button switches the theme (dark by default); the
 choice is kept per browser in localStorage. The colour tokens live in `static/base.css`, the project's theme
 file.
+
+The header's "Wake the supervisor now" button (in a coordinator checkout with board commits on: "Wake
+<me>'s session now") ends the watcher's wait at once (Watcher, "Wake now"): it POSTs to `/wake`, which writes
+the marker `log/wake-now.json` as this checkout's person and sends the browser back to the page it was on
+("Wake requested" in the header); no task file changes, nothing is committed.
 
 The header also shows the state of the periodic update ("Updated a1b2c3d, 14:02" / "Updated r123, 14:02",
 "Update paused: waiting for local task edits to be committed and pushed (2 files)", "Update failed: git fetch
@@ -327,9 +335,37 @@ full `svn update` equalize it, see `.claude/svn/README.md`). The rules:
   failed look at the revision after one was seen also keeps the last state. A lock present for about 100 s (20
   polls in a row) prints one note (`git index is locked; remove .git/index.lock if no git command is running` /
   `the update paths are locked; run svn cleanup if no svn command is running`) without exiting; it re-arms after
-  the lock clears (a crashed command's stale lock). With `--no-update` none of this runs. After the first input
-  it waits `quiet_seconds` without further input, so a burst arrives as one report; the `WAITING ON SUPERVISOR`
-  list follows.
+  the lock clears (a crashed command's stale lock). With `--no-update` none of this runs. The `WAITING ON
+  SUPERVISOR` list follows the report.
+- **What wakes it.** Not every key starts a batch: a board line written on this checkout's board, a new open
+  question for the supervisor (`question`) and a task now waiting on the supervisor (`waiting`) do. A new task
+  (`task`) and another dev's board line (`board`) are reported with the next wake but never cause one (session
+  start and `tb board` show them anyway). An update conflict, a divergence or 3 failed updates (exit 3) wake it
+  whatever else is pending, held by nothing.
+- **When it wakes.** A batch is reported when nothing more arrived for `quiet_seconds` AND at least
+  `hold_seconds` passed since its first input. So a burst, or a slow conversation on the board, arrives as one
+  report.
+- **Wake now.** The marker `log/wake-now.json` (`{"by": "Alex", "at": "2026-10-20T10:00:00"}`, written by the
+  board's header button through `POST /wake`) ends the wait at the next poll: hold and quiet are ignored, the
+  marker is deleted, and the report is preceded by `WAKE NOW: requested by Alex at
+  2026-10-20T10:00:00`. With nothing pending it prints that line and the WAITING ON section and still exits 0.
+  A marker that exists when a watcher starts is deleted without a wake (it was meant for a watcher that was
+  not there; session start shows what waits).
+- **What it prints.** After the lines of every task that has board lines, or a `waiting` key in INCOMING, an
+  indented block with the task's state, `waiting_on` and owner, and one question/answer pair per question the
+  board lines answered (`answered Qn`): the question's first line (cut at 160 characters) and the answer as
+  recorded in the task file (cut at 300), so the supervisor needs no `tb show` for the usual case. A note needs
+  no extra line (its text is in the log line). For example:
+
+  ```
+  BOARD INPUT:
+    T012: - 2026-10-20 Alex (board): answered Q2.
+          state 01-Refinement, waiting on supervisor, owner Alex
+          Q2: Which format should the export use? (a) CSV (recommended) (b) JSON
+          answer (Alex): a: CSV
+  WAITING ON SUPERVISOR:
+    T012 Export (01-Refinement)
+  ```
 - **exit 3** with `UPDATE STOPPED: unmerged paths ...` / `UPDATE STOPPED: conflict in ...`, `UPDATE STOPPED:
   local and origin diverged; ...` (git) or `UPDATE FAILING: 3 <vcs> updates in a row failed (...)`. Each
   conflict, divergence or failure wakes the supervisor once: `log/watch-update.json` remembers it, so a restarted
@@ -343,7 +379,8 @@ full `svn update` equalize it, see `.claude/svn/README.md`). The rules:
 
 The first update runs at start, before the base is taken: input that arrived while no watcher ran is already in
 the files (session start and `tb watch --once` show it). While nothing arrives the watcher prints nothing and
-never exits; it costs no model usage.
+never exits; it costs no model usage. The supervisor's end of a wake is `tb done "<message>"`: the check, then
+one commit (and push) of the task files, so the next `watch` starts from a clean checkout.
 
 ## Board commits
 
@@ -388,16 +425,16 @@ wakes it, and its `WAITING ON <DEV>` list is complete. Other people's `(board)` 
 ## Coordinator watcher
 
 `tb watch --for <dev>` is the coordinator's watcher (`.claude/skills/coordinator/`), started in the background
-like the supervisor's. Same loop, update, quiet period, exit codes, parent check and board identity check; it
-starts the board only when none of this checkout runs, and that board follows `local.json` `board_commits`.
-`--for` must name one of `people` (else exit 2). It exits 0 for:
+like the supervisor's. Same loop, update, quiet period, hold, wake-now marker, exit codes, parent check
+and board identity check; it starts the board only when none of this checkout runs, and that board follows
+`local.json` `board_commits`. `--for` must name one of `people` (else exit 2). It exits 0 for:
 
 - `BOARD INPUT:` every new line written on this checkout's board (the dev's own answers and notes, on any task);
 - `INCOMING (...)`: what concerns the dev and arrived with an update: `T127 Q5 open, for Robin` (an open
   question for the user addressed `@Robin:`, or unaddressed on a task she owns: the board's "waiting on me"
-  rule), `T136 now owned by Robin (01-Refinement)` (a task newly hers, also a new task created for her; `null`
-  owners count for `default_owner`), `T184 Alex (board): answered Q2.` (another person's board line on a task
-  she owns).
+  rule) and `T184 Alex (board): answered Q2.` (another person's board line on a task she owns) start a batch;
+  `T136 now owned by Robin (01-Refinement)` (a task newly hers, also a new task created for her; `null` owners
+  count for `default_owner`) is reported with the next wake but never causes one.
 
 Nothing else wakes it: other devs' activity on their tasks, moves, agents' log lines, questions for the
 supervisor, the coordinator's own `tb` edits. The report ends with `WAITING ON ROBIN:` (every task with an open
@@ -454,7 +491,8 @@ Who ends when (no process outlives its session for long, and the port is free ag
     vcs/              the version control backends: __init__.py (interface, review field), git.py, svn.py
     web/              Flask app, templates, static (base.css holds the colour tokens), options.py (question options)
   tests/              pytest suite: python -m pytest .claude/board/tests -q (throw-away git and svn repositories)
-  log/                server log of the watcher-started board, write.lock (OS-locked, stays), watch-update.json
+  log/                server log of the watcher-started board, write.lock (OS-locked, stays), watch-update.json,
+                      wake-now.json (the "Wake now" marker, deleted by the watcher)
 ```
 
 Changing the flow means changing `workflow.py`, the state table in `AI/Tasks/README.md` and the move rules in

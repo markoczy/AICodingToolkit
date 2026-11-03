@@ -841,6 +841,61 @@ def cmd_serve(config: dict, args) -> int:
     return 0
 
 
+def done_paths(config: dict) -> list[str]:
+    """The repo-relative paths `tb done` commits: the update paths, plus the handover file when it lies outside
+    them."""
+    paths = list(config["watch"]["update_paths"])
+    handover = config.get("handover")
+    if handover:
+        path = handover["path"].replace("\\", "/").strip("/")
+        if not any(path == p or path.startswith(p + "/") for p in paths):
+            paths.append(path)
+    return paths
+
+
+def done_message(message: str) -> str:
+    """The commit message with the `tasks: ` prefix (kept when already there)."""
+    text = textedit.clean_input(message, "message", 500)
+    return text if re.match(r"^tasks:\s", text) else f"tasks: {text}"
+
+
+def cmd_done(config: dict, args) -> int:
+    """
+    The supervisor's end of a wake: the check (any problem: printed, exit 1, nothing committed), then one commit
+    of the task files (done_paths) through the backend, pushed with git unless --no-push. Refused outside a
+    checkout of the main line like every write.
+    """
+    for source in config["sources"]:
+        if source["editable"]:
+            guard(config, source)
+    message = done_message(args.message)
+    boards, problems = check_all(config)
+    for w in handover_warnings(config):
+        print(f"warning: {w}")
+    if problems:
+        print(f"{len(problems)} problem(s), nothing committed:", file=sys.stderr)
+        for p in problems:
+            print(f"  {p}", file=sys.stderr)
+        return 1
+    vcs = backend(config)
+    if not vcs.available():
+        raise CliError(f"{vcs.name} is not on PATH; commit the task files by hand")
+    paths = done_paths(config)
+    with task_write_lock():  # no periodic update between the add and the commit
+        revision, note, error = vcs.commit_paths(config, paths, message, push=not args.no_push)
+    if revision is None and not error:
+        print(f"nothing to commit under {', '.join(paths)}")
+        return 0
+    if revision is None:
+        raise CliError(error)
+    shown = vcs.format_revision(revision)
+    if error:
+        print(f"committed {shown} ({message}); {error}", file=sys.stderr)
+        return 1
+    print(f"committed {shown} ({message})" + (f"; {note}" if note else ""))
+    return 0
+
+
 def cmd_watch(config: dict, args) -> int:
     from .session import SessionGuard, ancestors
     from .watch import watch
@@ -1004,6 +1059,12 @@ def build_parser() -> argparse.ArgumentParser:
                                                             "local.json board_commits says (the supervisor's "
                                                             "watcher starts its board so)")
     p.set_defaults(func=cmd_serve)
+    p = sub.add_parser("done", help="the supervisor's end of a wake: run the check (problems: exit 1, nothing "
+                                    "committed), then commit the task files (watch.update_paths and the handover "
+                                    "file) with the message prefixed 'tasks: ' and push (git)")
+    p.add_argument("message", help="the commit message ('tasks: ' is prefixed unless already there)")
+    p.add_argument("--no-push", action="store_true", help="git: commit without pushing")
+    p.set_defaults(func=cmd_done)
     p = sub.add_parser("watch", help="wait for input for the supervisor (web board, other devs' commits), print "
                                      "it and exit (3: update conflict or repeated failure); with --for <dev>, "
                                      "for a coordinator")

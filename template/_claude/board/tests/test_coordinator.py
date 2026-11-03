@@ -111,10 +111,12 @@ class TestSupervisorParity:
         assert capsys.readouterr().out == (
             "BOARD INPUT:\n"
             "  T002: - 2026-10-20 Alex (board): note.\n"
+            "        state 00-Conception, waiting on -, owner Alex\n"
             "INCOMING (git pull, 5 -> 7):\n"
             "  T001 new task: Ask (01-Refinement)\n"
             "  T001 Q1 open, for supervisor\n"
             "  T001 now waiting on supervisor (01-Refinement)\n"
+            "        state 01-Refinement, waiting on supervisor, owner Robin\n"
             "  T001 Robin (board): answered Q0.\n"
             "WAITING ON SUPERVISOR:\n"
             "  T001 Ask (01-Refinement)\n")

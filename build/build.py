@@ -376,6 +376,7 @@ def context(answers: dict) -> dict:
         "compact_window_k": f"{a['compact_window'] // 1000}k",
         "idle_compact_tokens": a["idle_compact_tokens"],
         "quiet_seconds": a["watch_quiet_seconds"],
+        "hold_seconds": a["watch_hold_seconds"],
         "update_seconds": a["watch_update_seconds"],
         "board_idle_minutes": a["board_idle_minutes"],
         "reload_budget": a["reload_budget_bytes"],

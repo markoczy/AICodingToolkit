@@ -80,6 +80,7 @@ class TestAnswers:
     def test_advanced_defaults_and_bounds(self):
         answers = build.validate(build.example_answers("git"))
         assert answers["compact_window"] == 150000 and answers["watch_quiet_seconds"] == 120
+        assert answers["watch_hold_seconds"] == 600
         ctx = build.context(answers)
         assert ctx["compact_window_k"] == "150k" and ctx["reload_budget"] == 20000
         answers["compact_window"] = 50
@@ -128,7 +129,8 @@ def test_smoke_build(tmp_path, vcs):
 
 def test_advanced_answers_reach_the_output(tmp_path):
     answers = build.example_answers("git")
-    answers.update({"compact_window": 200000, "watch_quiet_seconds": 300, "board_idle_minutes": 0})
+    answers.update({"compact_window": 200000, "watch_quiet_seconds": 300, "board_idle_minutes": 0,
+                    "watch_hold_seconds": 0})
     out = tmp_path / "out"
     build.build(answers, out)
     settings = json.loads((out / ".claude" / "settings.json").read_text(encoding="utf-8"))
@@ -136,6 +138,7 @@ def test_advanced_answers_reach_the_output(tmp_path):
     assert settings["env"]["CLAUDE_CODE_IDLE_COMPACT_MIN_TOKENS"] == "100000"
     board = json.loads((out / ".claude" / "board" / "board.json").read_text(encoding="utf-8"))
     assert board["watch"]["quiet_seconds"] == 300 and board["watch"]["board_idle_minutes"] == 0
+    assert board["watch"]["hold_seconds"] == 0 and "hours" not in board["watch"]
     assert "200k tokens" in (out / ".claude" / "skills" / "supervisor" / "SKILL.md").read_text(encoding="utf-8")
     questions = build.load_questions()
     assert [q["id"] for q in questions if q.get("advanced")][0] == "compact_window"

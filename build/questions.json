@@ -141,6 +141,13 @@
       "advanced": true
     },
     {
+      "id": "watch_hold_seconds",
+      "prompt": "Seconds the watcher holds a batch of input after its first item before it wakes the supervisor, so answers across several tasks arrive in one wake-up (0: no hold; the board's 'Wake now' button overrides it)",
+      "type": "int",
+      "default": 600, "min": 0, "max": 7200,
+      "advanced": true
+    },
+    {
       "id": "watch_update_seconds",
       "prompt": "Seconds between the watcher's pulls (git) or updates (svn) of the task files",
       "type": "int",

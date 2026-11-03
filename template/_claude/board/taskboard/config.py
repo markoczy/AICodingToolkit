@@ -23,7 +23,7 @@ CONFIG_KEYS = {"title", "repo_root", "vcs", "main_branch", "ownership", "plans_d
                "reload"}
 SOURCE_KEYS = {"name", "root", "prefix", "editable"}
 WATCH_KEYS = {"quiet_seconds", "poll_seconds", "update_seconds", "update_paths", "update_when_dirty",
-              "board_idle_minutes"}
+              "board_idle_minutes", "hold_seconds"}
 HANDOVER_KEYS = {"path", "max_lines", "max_chars", "max_line_chars"}
 HANDOVER_DEFAULTS = {"path": "AI/SupervisorHandover.md", "max_lines": 60, "max_chars": 6000, "max_line_chars": 160}
 RELOAD_KEYS = {"budget_bytes"}
@@ -47,7 +47,7 @@ DEFAULTS = {
     "refresh_seconds": 5,
 }
 WATCH_DEFAULTS = {"quiet_seconds": 120, "poll_seconds": 5, "update_seconds": 60, "update_paths": ["AI"],
-                  "update_when_dirty": False, "board_idle_minutes": 15}
+                  "update_when_dirty": False, "board_idle_minutes": 15, "hold_seconds": 0}
 # Below this the periodic update would hammer the server; 0 disables it.
 MIN_UPDATE_SECONDS = 10
 REQUIRED_ROLES = {"user", "supervisor"}
@@ -191,6 +191,19 @@ def check_idle_minutes(value, what: str = "board_idle_minutes"):
     if isinstance(value, bool) or not isinstance(value, (int, float)) or value < 0:
         raise BoardConfigError(f"{what} must be a number of minutes, at least 0 (0 = never), got {value!r}")
     return value
+
+
+def check_hold_seconds(value, what: str = "watch.hold_seconds") -> int:
+    """Seconds the watcher holds a batch of input before it wakes the supervisor: a whole number of at least 0."""
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise BoardConfigError(f"{what} must be a whole number of seconds, at least 0, got {value!r}")
+    return value
+
+
+def log_dir(config: dict) -> str:
+    """The checkout's `log/` folder next to its config: the board's server log, the write lock, the watcher's
+    markers (`watch-update.json`, `wake-now.json`). Ignored by version control."""
+    return os.path.join(os.path.dirname(config.get("config_path") or DEFAULT_CONFIG), "log")
 
 
 def board_id(config: dict) -> str:
@@ -349,6 +362,7 @@ def validate_board_config(config: dict, base_dir: str = BOARD_DIR) -> dict:
     if not isinstance(result["watch"]["update_when_dirty"], bool):
         raise BoardConfigError(f"watch.update_when_dirty must be true or false, "
                                f"got {result['watch']['update_when_dirty']!r}")
+    result["watch"]["hold_seconds"] = check_hold_seconds(result["watch"]["hold_seconds"])
 
     result["handover"] = _handover(config.get("handover"), result["repo_root_path"])
     _check_reload_budget(config.get("reload"))

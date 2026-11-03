@@ -190,7 +190,12 @@ agents makes many turns a day, so the context size is the main cost of the harne
 caps the automatic compaction window at {{compact_window_k}} tokens for every session of the checkout (agents included) and
 lets an idle session compact itself; the supervisor starts fresh (a `/clear`, in the Claude desktop app by
 itself) after a landed task when nothing is running and the user is in chat, as the supervisor skill ("Context
-size") describes. The handover and the reload hook make both safe at any time.
+size") describes. The handover and the reload hook make both safe at any time. The watcher keeps the number of
+wake-ups down too: it holds a batch of input for `watch.hold_seconds` so answers across tasks arrive together,
+wakes the supervisor only for input that is for it (a new question for the supervisor, a task now waiting on
+it, board input); the board's **Wake now** button overrides the wait. A
+wake-up prints each task's state, waiting-on, owner, question and answer, and `tb done "<message>"` checks,
+commits{{#if git}} and pushes{{/if}} in one call, so handling an answer takes few turns.
 
 ## The task board
 

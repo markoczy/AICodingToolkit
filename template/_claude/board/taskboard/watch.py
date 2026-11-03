@@ -14,15 +14,29 @@ Makes sure the web board is running, keeps the checkout current (the backend's p
   svn can't tell those apart, so every new key counts. Known limitation: an own commit that arrives in the same
   poll as another dev's commit, or a task both changed, is reported once.
 
-It then waits until nothing more arrived for `quiet_seconds` (people often answer several questions in a row),
-prints the input and the tasks waiting on the supervisor, and exits 0. A conflict, a diverged branch (git) or 3
-failed updates in a row print `UPDATE STOPPED` / `UPDATE FAILING` and exit 3, once per conflict or failure (a
-restarted watcher does not exit again for the same one, see `log/watch-update.json`); a single failure only
-prints a line.
+Not everything that arrives wakes it. A batch starts (and is extended) only by what the supervisor must act on:
+a board line written on this checkout's board, a new open question for the supervisor (`question`), a task now
+waiting on the supervisor (`waiting`). A new task (`task`) and another dev's board line (`board`) are reported
+with the next wake but never cause one (session start shows them anyway). The coordinator's watcher wakes for
+`question` keys and `board` lines on the dev's tasks; a task newly theirs (`owned`) is reported, never a wake.
+
+It then waits until nothing more arrived for `quiet_seconds` (people often answer several questions in a row)
+AND at least `hold_seconds` passed since the batch's first input (the supervisor wakes less often: a slow
+conversation on the board becomes one wake). Then it prints the input, with the state and the answered
+questions of each task that has board lines or now waits on the supervisor (so the usual `tb show` is not
+needed), and the tasks waiting on the supervisor, and exits 0. The marker `log/wake-now.json` (the board's
+"Wake now" button, `/wake`) ends the wait at once: hold and quiet are ignored, the report is preceded by
+`WAKE NOW: requested by <name> at <time>`, and with nothing pending the WAITING ON section alone is printed
+(exit 0). A marker that exists when the watcher starts is deleted without a wake (it was meant for a watcher
+that was not there).
+
+A conflict, a diverged branch (git) or 3 failed updates in a row print `UPDATE STOPPED` / `UPDATE FAILING` and
+exit 3, once per conflict or failure (a restarted watcher does not exit again for the same one, see
+`log/watch-update.json`); a single failure only prints a line. Those are never held.
 
 Exiting is what wakes the supervisor: start it with the Bash tool's `run_in_background`, handle the input,
-start it again. While it sleeps it costs no model usage. CLI edits never write `(board)` actors, so they never
-trigger it.
+`tb done "<message>"` to commit the task files, start it again. While it sleeps it costs no model usage. CLI
+edits never write `(board)` actors, so they never trigger it.
 
 Lifecycle: the watcher stops (exit 4, `SESSION GONE`) once a process of the session that started it ended
 (session.py), so an orphaned watcher never restarts its board. The board it starts is detached (it survives the
@@ -46,15 +60,19 @@ import sys
 import time
 import urllib.error
 import urllib.request
+from datetime import datetime
 
-from .config import BOARD_DIR, board_id
+from .config import BOARD_DIR, board_id, log_dir
 from .model import FILE_PATTERN, effective_owner, load_tasks, waits_on_person
 from .update import FAILURES_TO_WAKE, Updater
 from .vcs import backend
+from .web.options import question_texts
 
 # A Log line the web board wrote: `- <date> <name> (board): ...` (`user (board)` without people in board.json).
 # The CLI refuses a --by containing "(board)", so only the board writes it.
 BOARD_LINE = re.compile(r"^- \d{4}-\d{2}-\d{2} ([\w-]+) \(board\):")
+# A board line that answered a question: its Qn gets a question/answer block in the report.
+ANSWERED = re.compile(r"\banswered (Q\d+)\b")
 EXIT_UPDATE = 3
 EXIT_SESSION_GONE = 4
 # Steps in a row with the checkout locked by an update before the watcher prints the backend's lock note (an
@@ -62,7 +80,56 @@ EXIT_SESSION_GONE = 4
 # 5 s), so 20 is about 100 s; a step with a due update can observe twice and count twice.
 LOCK_NOTE_POLLS = 20
 KIND_ORDER = {"task": 0, "question": 1, "owned": 2, "waiting": 2, "board": 3}
+# The INCOMING kinds that start or extend a batch (module docstring): the supervisor's and the coordinator's.
+WAKE_KINDS_SUPERVISOR = frozenset({"question", "waiting"})
+WAKE_KINDS_COORDINATOR = frozenset({"question", "board"})
 LOG_MAX_BYTES = 1024 * 1024
+WAKE_FILE = "wake-now.json"
+# The report's question/answer block: the question's first line and the answer are cut here.
+QUESTION_CHARS = 160
+ANSWER_CHARS = 300
+BLOCK_INDENT = " " * 8
+
+
+def wake_kinds(person: str | None) -> frozenset:
+    """The INCOMING kinds that wake the supervisor's watcher (None) or a coordinator's."""
+    return WAKE_KINDS_SUPERVISOR if person is None else WAKE_KINDS_COORDINATOR
+
+
+def wake_path(config: dict) -> str:
+    """The "wake now" marker `log/wake-now.json` next to the config (written by the board's /wake)."""
+    return os.path.join(log_dir(config), WAKE_FILE)
+
+
+def request_wake(config: dict, by: str, at: str | None = None) -> None:
+    """Write the marker `{"by": <name>, "at": <ISO local time>}`: the running watcher exits at its next poll."""
+    path = wake_path(config)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    temp = path + ".tmp"
+    with open(temp, "w", encoding="utf-8", newline="\n") as f:
+        json.dump({"by": by, "at": at or datetime.now().isoformat(timespec="seconds")}, f)
+    os.replace(temp, path)
+
+
+def take_wake(config: dict) -> dict | None:
+    """The marker's content (deleted on the way), or None when there is none. An unreadable marker is deleted
+    too and comes back with what could be read."""
+    path = wake_path(config)
+    if not os.path.exists(path):
+        return None
+    data: dict = {}
+    try:
+        with open(path, encoding="utf-8") as f:
+            loaded = json.load(f)
+        if isinstance(loaded, dict):
+            data = loaded
+    except (OSError, ValueError):
+        pass
+    try:
+        os.remove(path)
+    except OSError:
+        pass
+    return {"by": str(data.get("by") or "someone"), "at": str(data.get("at") or "an unknown time")}
 
 
 def board_url(config: dict) -> str:
@@ -275,23 +342,100 @@ def print_waiting(config: dict, person: str | None = None) -> None:
         print(line)
 
 
+def _cut(text: str, limit: int) -> str:
+    text = text.replace("\r\n", "\n").replace("\n", " / ")
+    return text if len(text) <= limit else text[:limit - 3] + "..."
+
+
+def _question_lines(task: dict, qids: list[str]) -> list[str]:
+    """
+    `Qn: <first line of the question>` and `answer (<who>): <answer>` for each question id, from the task's
+    question fields (the answered line `... → <answer>`; a multi-line question carries the answer on its last
+    line, so the full text is split at the last arrow). A question the file does not have is skipped; an
+    open one gets its question line only.
+    """
+    full = question_texts(task["sections"].get("Questions", ""))
+    by_id = {q["id"]: q for q in task["questions"]}
+    lines = []
+    for qid in qids:
+        q = by_id.get(qid)
+        if q is None:
+            continue
+        first, answer = q["text"], None
+        if q["status"] == "answered":
+            whole = full.get(qid, q["text"])
+            if " → " in whole:
+                _, _, answer = whole.rpartition(" → ")
+            else:
+                answer = ""
+            if answer and " → " in first and first.endswith(answer):
+                first = first[:-len(answer) - 3]
+        lines.append(f"{qid}: {_cut(first.strip(), QUESTION_CHARS)}")
+        if answer is not None:
+            lines.append(f"answer ({q['answered_by']}): {_cut(answer.strip(), ANSWER_CHARS)}")
+    return lines
+
+
+def task_block(config: dict, task: dict, board_lines: list[str]) -> list[str]:
+    """
+    The lines of a task's report block (indented by the caller): its state, waiting_on and owner, then one
+    question/answer pair per question its board lines mention ("answered Qn"), in number order.
+    """
+    h = task["header"]
+    owner = effective_owner(h, config.get("default_owner")) or "-"
+    lines = [f"state {task['state']}, waiting on {h.get('waiting_on') or '-'}, owner {owner}"]
+    mentioned = sorted({m.group(1) for line in board_lines for m in ANSWERED.finditer(line)},
+                       key=lambda q: int(q[1:]))
+    return lines + _question_lines(task, mentioned)
+
+
 def report(config: dict, new_lines: set[tuple[str, str, str]], incoming: dict | None = None,
            revisions: tuple | None = None, person: str | None = None) -> None:
+    """
+    BOARD INPUT (this checkout's board lines), INCOMING (what an update brought) and the WAITING ON list. A
+    task with board lines, or with a `waiting` key in INCOMING, gets a block after its lines (task_block) with
+    its state and the questions those lines answered, so the supervisor needs no `tb show` for the usual case.
+    """
+    # snapshot() keys a task by its header id (else the file name), state() by the id in the file name.
+    tasks: dict[tuple[str, str], dict] = {}
+    for source, task in _tasks(config):
+        tasks[(source["name"], str(task["header"].get("id") or task["file"]))] = task
+        m = FILE_PATTERN.match(task["file"])
+        if m:
+            tasks.setdefault((source["name"], m.group(1)), task)
+    incoming = incoming or {}
+    board_lines: dict[tuple[str, str], list[str]] = {}
+    for source, task_id, line in new_lines:
+        board_lines.setdefault((source, task_id), []).append(line)
+    for key in incoming:
+        if key[0] == "board":
+            board_lines.setdefault((key[1], key[2]), []).append(key[3])
+
+    def block(source: str, task_id: str) -> None:
+        task = tasks.get((source, task_id))
+        if task is not None:
+            for line in task_block(config, task, board_lines.get((source, task_id), [])):
+                print(f"{BLOCK_INDENT}{line}")
+
     if new_lines:
         print("BOARD INPUT:")
-        for source, task_id, line in sorted(new_lines):
+        ordered = sorted(new_lines)
+        for i, (source, task_id, line) in enumerate(ordered):
             prefix = f"{source}/" if len(config["sources"]) > 1 else ""
             print(f"  {prefix}{task_id}: {line}")
+            if i + 1 == len(ordered) or ordered[i + 1][:2] != (source, task_id):
+                block(source, task_id)
     if incoming:
         print(f"INCOMING ({backend(config).incoming_header(revisions)}):")
         for key in sorted(incoming, key=lambda k: (KIND_ORDER[k[0]], k[1:])):
             print(f"  {incoming[key]}")
+            if key[0] == "waiting":
+                block(key[1], key[2])
     print_waiting(config, person)
 
 
 def _reported_path(config: dict) -> str:
-    return os.path.join(os.path.dirname(config.get("config_path") or os.path.join(BOARD_DIR, "board.json")),
-                        "log", "watch-update.json")
+    return os.path.join(log_dir(config), "watch-update.json")
 
 
 def _load_reported(config: dict) -> str:
@@ -497,15 +641,18 @@ def ensure_board(config: dict, updating: bool, commits: bool = False) -> bool:
 def watch(config: dict, start_server: bool = True, quiet_seconds: float | None = None, once: bool = False,
           update: bool = True, update_seconds: float | None = None, updater: Updater | None = None,
           revision_of=None, running_of=None, own_of=None, changed_of=None, guard=None,
-          person: str | None = None) -> int:
+          person: str | None = None, hold_seconds: float | None = None, clock=time.monotonic) -> int:
     """
     guard: a session.SessionGuard; when one of its processes ended, the watcher prints SESSION GONE and exits
     EXIT_SESSION_GONE without touching the board. None: no session check.
     person: the coordinator's watcher (`tb watch --for`): INCOMING is what concerns person (person_state), and
     the board it starts commits per local.json. None: the supervisor's watcher, whose board never commits.
-    revision_of, running_of, own_of, changed_of replace the backend's functions (tests).
+    hold_seconds overrides `watch.hold_seconds`; clock gives the monotonic seconds of the quiet and hold
+    periods (tests inject it). revision_of, running_of, own_of, changed_of replace the backend's functions
+    (tests).
     """
     quiet = quiet_seconds if quiet_seconds is not None else config["watch"]["quiet_seconds"]
+    hold = hold_seconds if hold_seconds is not None else config["watch"].get("hold_seconds", 0)
     poll = config["watch"]["poll_seconds"]
     if once:
         print_waiting(config, person)
@@ -516,6 +663,7 @@ def watch(config: dict, start_server: bool = True, quiet_seconds: float | None =
     updating = updater.enabled
     cycle = _Cycle(config, updater, revision_of, running_of, own_of, changed_of, person)
     commits = person is not None
+    kinds = wake_kinds(person)
 
     def stop() -> int:
         print(cycle.stop_message)
@@ -532,6 +680,7 @@ def watch(config: dict, start_server: bool = True, quiet_seconds: float | None =
     try:
         if session_gone():
             return EXIT_SESSION_GONE
+        take_wake(config)  # a marker from before this watcher: session start shows what waits
         if person is None and config.get("board_commits"):
             print("note: local.json has board_commits on, but this is the supervisor's watcher: a board it starts "
                   "never commits (--no-commit), but a board already running here that was started otherwise "
@@ -547,8 +696,8 @@ def watch(config: dict, start_server: bool = True, quiet_seconds: float | None =
         print(f"watching {', '.join(s['name'] for s in config['sources'])} "
               + (f"for {person} " if person else "")
               + f"(board http://{config['host']}:{config['port']}/"
-              + (f"; {cycle.backend.update_description(config, updater.interval)}" if updating else "") + ")",
-              flush=True)
+              + (f"; {cycle.backend.update_description(config, updater.interval)}" if updating else "")
+              + (f"; hold {hold:g} s" if hold else "") + ")", flush=True)
         # Input that arrived while no watcher ran is in the files already (session start shows it): the base
         # is taken after a first update.
         if cycle.step() == EXIT_UPDATE:
@@ -556,6 +705,10 @@ def watch(config: dict, start_server: bool = True, quiet_seconds: float | None =
         cycle.incoming.clear()
         cycle.revisions = [None, None]
         base = snapshot(config)
+        # The batch: the time its first waking input was seen, the time the waking input last changed, and
+        # that input (board lines and waking INCOMING keys); None/empty between batches.
+        since = last_change = None
+        last_sig: tuple = ()
         while True:
             time.sleep(poll)
             if session_gone():
@@ -565,23 +718,27 @@ def watch(config: dict, start_server: bool = True, quiet_seconds: float | None =
             if cycle.step() == EXIT_UPDATE:
                 return stop()
             current = snapshot(config)
-            if current == base and not cycle.incoming:
-                continue
-            last, last_in, waited = current, len(cycle.incoming), 0.0
-            while waited < quiet:
-                time.sleep(poll)
-                waited += poll
-                if session_gone():
-                    return EXIT_SESSION_GONE
-                if cycle.step() == EXIT_UPDATE:
-                    return stop()
-                now = snapshot(config)
-                if now != last or len(cycle.incoming) != last_in:
-                    last, last_in, waited = now, len(cycle.incoming), 0.0
             arrived = {key[1:] for key in cycle.incoming if key[0] == "board"} | cycle.arrived
-            new_lines = (last - base) - arrived
-            if not new_lines and not cycle.incoming:
-                base = last
+            new_lines = (current - base) - arrived
+            wake = take_wake(config)
+            if wake is not None:
+                print(f"WAKE NOW: requested by {wake['by']} at {wake['at']}")
+                report(config, new_lines, cycle.incoming, tuple(cycle.revisions), person)
+                return 0
+            wakers = frozenset(k for k in cycle.incoming if k[0] in kinds)
+            if not new_lines and not wakers:
+                if current != base:
+                    base = current  # lines that are no input (another dev's, arrived with an update)
+                since = last_change = None
+                last_sig = ()
+                continue
+            now = clock()
+            sig = (frozenset(new_lines), wakers)
+            if sig != last_sig:
+                last_sig, last_change = sig, now
+                if since is None:
+                    since = now
+            if now - last_change < quiet or now - since < hold:
                 continue
             report(config, new_lines, cycle.incoming, tuple(cycle.revisions), person)
             return 0

@@ -86,13 +86,18 @@ its ground rules apply to you too (no task questions repeated in chat, questions
 
 ## When the watcher wakes you
 
-`tb watch --for <dev>` updates every minute and sleeps (no model usage) until there is input that concerns the
-dev; it then waits until nothing more arrives for 2 minutes, prints it and exits, which wakes you. Output looks
+`tb watch --for <dev>` updates every {{update_seconds}} s and sleeps (no model usage) until there is input that
+concerns the dev; it then waits until nothing more arrives for {{quiet_seconds}} s and at least {{hold_seconds}} s
+passed since the batch's first input, prints it and exits, which wakes you.
+The board's **Wake now** button ends the wait at once (`WAKE NOW: requested by <name>` comes first). Output looks
 like:
 
 ```
 BOARD INPUT:
   T184: - 2026-10-29 {{dev}} (board): answered Q3.
+        state 01-Refinement, waiting on supervisor, owner {{dev}}
+        Q3: Keep the old export? (a) yes (b) no
+        answer ({{dev}}): (b)
 INCOMING ({{#if git}}git pull, 1a2b3c4 -> 5d6e7f8{{else}}svn update, r2580 -> r2583{{/if}}):
   T127 Q5 open, for {{dev}}
   T136 now owned by {{dev}} (01-Refinement)
@@ -107,8 +112,10 @@ WAITING ON {{dev}}:
   why){{/if}}. Continue the refinement where the answer unblocks it (`task-refine`), as for an answer given in chat.
 - `INCOMING`: `Qn open, for <dev>` is a new question for the dev (addressed `@<dev>:`, or unaddressed on their
   task): tell the dev in one line, they answer in chat or on the board. `now owned by <dev>` is a task newly theirs
-  (also a new task created for them): `tb show` it and tell the dev. `<name> (board): ...` is another person's
-  answer or note on the dev's task: read it and continue the refinement.
+  (also a new task created for them): `tb show` it and tell the dev; it is listed when something else wakes you,
+  it never wakes you alone. `<name> (board): ...` is another person's answer or note on the dev's task: read it
+  and continue the refinement. The block under a task (state, waiting on, owner, question and answer) usually
+  makes `tb show` unnecessary.
 - `WAITING ON <DEV>`: every task with an open question for the dev.
 
 Then restart the watcher (same command, same `--port`) and tell the dev in one or two lines what matters to them.

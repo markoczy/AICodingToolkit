@@ -317,6 +317,35 @@ def _svn(config: dict, *args: str) -> str:
     return "" if result.returncode == 0 else first_error(result.stderr)
 
 
+def svn_commit_paths(config: dict, paths: list[str], message: str) -> tuple:
+    """
+    `tb done`: `svn add --force --depth infinity <paths>` (new files; versioned ones are skipped), then
+    `svn commit -m <message> <paths>`. (revision text, "", "") on success; (None, "", "") when nothing under
+    the paths changed; (None, "", the error) when a step failed.
+    """
+    existing = [p for p in paths if os.path.exists(os.path.join(config["repo_root_path"], p))]
+    if not existing:
+        return None, "", ""
+    try:
+        add = _run(config, ["add", "--force", "--depth", "infinity", *existing], timeout=LOCAL_TIMEOUT_SECONDS)
+        if add.returncode != 0:
+            return None, "", f"svn add failed: {first_error(add.stderr)}"
+        status = _run(config, ["status", "-q", *existing], timeout=LOCAL_TIMEOUT_SECONDS)
+        if status.returncode != 0:
+            return None, "", f"svn status failed: {first_error(status.stderr)}"
+        if not any(STATUS_LINE.match(line) for line in status.stdout.splitlines()):
+            return None, "", ""
+        result = _run(config, ["commit", "-m", message, *existing], timeout=COMMIT_TIMEOUT_SECONDS)
+    except subprocess.TimeoutExpired:
+        return None, "", f"svn commit timed out after {COMMIT_TIMEOUT_SECONDS} s"
+    except OSError as exc:
+        return None, "", f"cannot run svn: {exc}"
+    if result.returncode != 0:
+        return None, "", f"svn commit failed: {commit_error(result.stderr)}"
+    m = COMMITTED.search(result.stdout)
+    return (m.group(1) if m else "HEAD"), "", ""
+
+
 class SvnBackend(Backend):
     name = "svn"
     default_main_branch = "trunk"
@@ -389,3 +418,6 @@ class SvnBackend(Backend):
 
     def commit_revision_pattern(self) -> str:
         return r"\d+"
+
+    def commit_paths(self, config: dict, paths: list[str], message: str, push: bool = True) -> tuple:
+        return svn_commit_paths(config, paths, message)
