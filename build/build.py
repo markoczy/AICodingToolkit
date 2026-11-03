@@ -207,6 +207,10 @@ def validate(answers: dict) -> dict:
                 result[qid] = int(value)
             except (TypeError, ValueError):
                 problems.append(f"{qid}: expected a whole number")
+            else:
+                low, high = question.get("min"), question.get("max")
+                if (low is not None and result[qid] < low) or (high is not None and result[qid] > high):
+                    problems.append(f"{qid}: {result[qid]} is not between {low} and {high}")
         elif kind == "list":
             if isinstance(value, str):
                 value = [item.strip() for item in re.split(r"[,\s]+", value) if item.strip()]
@@ -366,6 +370,16 @@ def context(answers: dict) -> dict:
     else:
         ctx.update({"deploy_where": "nowhere (no deploy step)", "deploy_check": "verification",
                     "deploy_phrase": "verify the landed change"})
+    # Tuning values (the advanced questions): settings.json, board.json and the prose that names them.
+    ctx.update({
+        "compact_window": a["compact_window"],
+        "compact_window_k": f"{a['compact_window'] // 1000}k",
+        "idle_compact_tokens": a["idle_compact_tokens"],
+        "quiet_seconds": a["watch_quiet_seconds"],
+        "update_seconds": a["watch_update_seconds"],
+        "board_idle_minutes": a["board_idle_minutes"],
+        "reload_budget": a["reload_budget_bytes"],
+    })
     ctx["answers"] = a
     return ctx
 

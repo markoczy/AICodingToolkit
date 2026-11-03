@@ -80,12 +80,14 @@ beyond the handover into it.
 ## Session start
 
 1. Read `AI/Context.md`, `AI/Methodology.md` and `AI/SupervisorHandover.md`.
-2. `tb me` must print the user's name ({{user}}). If it says "not set", run `tb me {{user}}`.{{#if multiuser}} Never set
+2. `tb me` must print the user's name ({{user}}) and `role supervisor`. If not: `tb me {{user}} --role supervisor`
+   (the reload hook then injects the role into every session of this checkout, also after a clear).{{#if multiuser}} Never set
    `board_commits` here (`tb me --board-commits` is for coordinator checkouts; `tb me` must not print `board
    commits on`): the supervisor commits its board input itself, and its watcher's board never commits.{{/if}}
 3. `{{vcs_update}}`{{#if git}} (not `git pull`: no race with the watcher's fetch on FETCH_HEAD){{/if}}, then `tb board` (fix any
    problem it reports first) and `tb watch --once` (what waits on you).
-4. Start the watcher: `board-watch` skill (`tb watch` with the Bash tool's `run_in_background: true`).
+4. Start the watcher: `board-watch` skill (`tb watch` with the Bash tool's `run_in_background: true`), unless
+   one you started before a clear is still among the background tasks.
 {{#if git}}
 5. `git worktree list` and the open PRs (`gh pr list`): those of tasks in 03/04 belong to work in flight;
    others are leftovers (remove a worktree without asking only when its branch is merged into `{{main}}` and it
@@ -176,6 +178,29 @@ When nothing is actionable: tell the user in one line what is waiting on whom, a
 - Never stop processes by image name; never put confidential material into {{tracked}} files or agent-visible
   text; never give credentials or passwords to an agent.
 - Repeated kind of work without a fitting agent or tool? Propose a new agent type or tool to the user.
+
+## Context size
+
+Every turn re-reads your whole context, and a woken session makes many turns a day: the size of your context is
+the main cost of this harness, not the wake-ups. Your memory is the handover and the task files, so the
+conversation may be short.
+
+- `.claude/settings.json` caps the automatic compaction window at {{compact_window_k}} tokens (`autoCompactWindow`) for every
+  session of this checkout, agents included, and lets an idle session compact itself (`env`
+  `CLAUDE_CODE_IDLE_COMPACT_MIN_TOKENS`). The reload hook brings the role, this skill and the handover back
+  after every compaction. Leave the values unless the user wants others (`/autocompact <tokens>` for a user,
+  the setting for the project).
+- **Start fresh after a landed task**, and whenever nothing is running (no agent, no fix round, no deploy in
+  progress) and the user is in chat: handover current, `tb check`, {{committed_pushed}}; then, in the Claude
+  desktop app, tell the user in one line that you clear your context now and call
+  `mcp__ccd_session_mgmt__clear_session` with `session_id: "self"` (the clear happens when the turn ends; the
+  user's next message starts a new conversation, the reload hook injects the role from `local.json`, and you
+  begin at "Session start"). In the CLI say instead that `/clear` is safe now. A cleared session waits for a
+  message, so during an autonomous stretch (watcher wake-ups only) rely on the automatic compaction instead.
+- The role survives a clear through `tb me --role supervisor` (local.json, this checkout) or
+  `CLAUDE_ROLE=supervisor`; without them the user runs `/supervisor` again.
+- Keep agents' results out of your context: an agent's final message is its result in a few lines; the details
+  belong in the task file, the plan or the {{review_noun}}, where you read them only when you need them.
 
 ## Session end
 

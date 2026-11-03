@@ -161,6 +161,13 @@ def test_the_transcript_still_activates_the_hook_without_the_role(project):
     assert run_hook(project, role=None, transcript=project / "missing.jsonl") == ""
 
 
+def test_local_json_role_activates_the_hook_also_on_clear(project):
+    out = run_hook(project, local='{"role": "supervisor"}', source="clear", role=None)
+    assert "HANDOVER TEXT" in out and "SKILL TEXT" in out and "(from local.json)" in out
+    assert run_hook(project, local='{"role": "other"}', source="clear", role=None) == ""
+    assert run_hook(project, local='{"me": "Alex"}', source="startup", role=None) == ""
+
+
 # --- total budget ----------------------------------------------------------------------------------------------
 
 def set_budget(project, value):

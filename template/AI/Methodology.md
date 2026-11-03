@@ -176,13 +176,21 @@ or the skill is dropped from it. The first action after a compaction is to sync 
 **The reload hook** (`.claude/hooks/reload.py`, `SessionStart` on `startup|resume|compact|clear` in
 `.claude/settings.json`) prints `.claude/skills/supervisor/SKILL.md` and `AI/SupervisorHandover.md` (then the
 files listed under `reload` in the {{untracked}} `.claude/board/local.json`, if any) into the context when the
-session is the supervisor. It knows that from the session's own transcript (the `supervisor` skill was invoked
-in it, via the Skill tool or `/supervisor`), or from the environment variable `CLAUDE_ROLE=supervisor` for
-sessions launched with it. A new session or a `/clear` starts with a new transcript, so there the supervisor
-role is taken by invoking `/supervisor` (or by launching with `CLAUDE_ROLE=supervisor`). After a compaction it
-does not print a skill body the transcript shows invoked (the harness re-lists it; a one-line note stands in),
+session is the supervisor. It knows that from `"role": "supervisor"` in the {{untracked}} `.claude/board/local.json`
+(`tb me <name> --role supervisor`, the supervisor's checkout only), from the environment variable
+`CLAUDE_ROLE=supervisor` for sessions launched with it, or from the session's own transcript (the `supervisor`
+skill was invoked in it, via the Skill tool or `/supervisor`). A new session or a `/clear` starts with a new
+transcript, so there the role comes from `local.json` or `CLAUDE_ROLE`, else from `/supervisor`. After a
+compaction it does not print a skill body the transcript shows invoked (the harness re-lists it; a one-line note stands in),
 and it keeps its output within `reload.budget_bytes` of `board.json` (default 20000, handover files never
 dropped, a one-line pointer for any other file that does not fit), so Claude Code keeps it inline.
+
+**Context size.** Every turn re-reads the session's whole context, and a supervisor woken by the watcher and by
+agents makes many turns a day, so the context size is the main cost of the harness. `.claude/settings.json`
+caps the automatic compaction window at {{compact_window_k}} tokens for every session of the checkout (agents included) and
+lets an idle session compact itself; the supervisor starts fresh (a `/clear`, in the Claude desktop app by
+itself) after a landed task when nothing is running and the user is in chat, as the supervisor skill ("Context
+size") describes. The handover and the reload hook make both safe at any time.
 
 ## The task board
 

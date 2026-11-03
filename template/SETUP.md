@@ -57,7 +57,10 @@ two project-specific lines that matter (e.g. the test command, the reference dat
 {{else}}
 2. `svn add --force CLAUDE.md AI .claude && svn commit -m "AI coding harness"`.
 {{/if}}
-3. Start Claude Code in the checkout and run `/supervisor`. It reads Context, Methodology and the handover,
+3. `{{python}} .claude/board/tb.py me {{user}} --role supervisor` (the reload hook then injects the supervisor role
+   into every Claude Code session of this checkout, also after `/clear`; the environment variable
+   `CLAUDE_ROLE=supervisor` does the same for one launch).
+   Start Claude Code in the checkout and run `/supervisor`. It reads Context, Methodology and the handover,
    starts the watcher (which starts the web board at http://127.0.0.1:{{port}}/) and works the board. Record the
    first tasks with `/task-new` or by telling the supervisor what needs doing.
 {{#if multiuser}}
@@ -66,8 +69,10 @@ two project-specific lines that matter (e.g. the test command, the reference dat
    `people` in `.claude/board/board.json` by the supervisor's user first.
 {{/if}}
 
-The supervisor also works without the `/supervisor` command when the session is launched with the environment
-variable `CLAUDE_ROLE=supervisor` (the reload hook then injects the role at every start).
+Token usage: `.claude/settings.json` caps every session's automatic compaction window at {{compact_window_k}} tokens
+(`autoCompactWindow`) and lets an idle session compact itself; a long-lived supervisor whose context is re-read
+at every wake-up costs a multiple of its context size, and the handover plus the reload hook make compaction and
+`/clear` safe at any time. Change the cap with `/autocompact <tokens>` (per user) or in the setting.
 
 ## 6. Keeping the harness current
 

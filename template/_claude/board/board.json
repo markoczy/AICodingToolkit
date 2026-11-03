@@ -23,9 +23,9 @@
   "host": "127.0.0.1",
   "port": {{port}},
   "refresh_seconds": 5,
-  "watch": {"quiet_seconds": 120, "poll_seconds": 5, "update_seconds": 60, "board_idle_minutes": 15},
+  "watch": {"quiet_seconds": {{quiet_seconds}}, "poll_seconds": 5, "update_seconds": {{update_seconds}}, "board_idle_minutes": {{board_idle_minutes}}},
   "handover": {"path": "AI/SupervisorHandover.md", "max_lines": 60, "max_chars": 6000, "max_line_chars": 160},
-  "reload": {"budget_bytes": 20000},
+  "reload": {"budget_bytes": {{reload_budget}}},
   "sources": [
     {"name": "tasks", "root": "AI/Tasks", "prefix": "T", "editable": true}
   ]

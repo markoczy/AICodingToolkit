@@ -52,7 +52,7 @@ WATCH_DEFAULTS = {"quiet_seconds": 120, "poll_seconds": 5, "update_seconds": 60,
 MIN_UPDATE_SECONDS = 10
 REQUIRED_ROLES = {"user", "supervisor"}
 LOCAL_FILE = "local.json"
-LOCAL_KEYS = {"me", "sources", "reload", "board_commits"}
+LOCAL_KEYS = {"me", "sources", "reload", "board_commits", "role"}
 PERSON = re.compile(r"[\w-]+")
 
 
@@ -274,6 +274,10 @@ def validate_local(local, people: list[str]) -> str | None:
     if not isinstance(local.get("board_commits", False), bool):
         raise BoardConfigError("local.json: board_commits must be true or false. Fix it with: "
                                "tb me --board-commits on|off")
+    role = local.get("role")
+    if role is not None and role != "supervisor":
+        raise BoardConfigError(f"local.json: role must be \"supervisor\" or absent, got {role!r}. Fix it with: "
+                               "tb me --role supervisor|none")
     me = local.get("me")
     if me is None:
         return None

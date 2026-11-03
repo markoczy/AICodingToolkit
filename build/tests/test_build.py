@@ -77,6 +77,15 @@ class TestAnswers:
         assert ctx["git"] and ctx["single"] and ctx["analyst"] and ctx["review_field"] == "pr"
         assert "analyst" in json.loads(ctx["roles_json"])
 
+    def test_advanced_defaults_and_bounds(self):
+        answers = build.validate(build.example_answers("git"))
+        assert answers["compact_window"] == 150000 and answers["watch_quiet_seconds"] == 120
+        ctx = build.context(answers)
+        assert ctx["compact_window_k"] == "150k" and ctx["reload_budget"] == 20000
+        answers["compact_window"] = 50
+        with pytest.raises(build.BuildError, match="compact_window: 50 is not between 100000 and 1000000"):
+            build.validate(answers)
+
     def test_shade(self):
         assert build.shade("#8b5cf6", 0.1) != "#8b5cf6"
         assert build.shade("#000000", -0.5) == "#000000"
@@ -115,6 +124,21 @@ def test_smoke_build(tmp_path, vcs):
     assert board["ownership"] == ("open" if vcs == "svn" else "strict")
     settings = json.loads((out / ".claude" / "settings.json").read_text(encoding="utf-8"))
     assert ("WorktreeCreate" in settings["hooks"]) == (vcs == "svn")
+
+
+def test_advanced_answers_reach_the_output(tmp_path):
+    answers = build.example_answers("git")
+    answers.update({"compact_window": 200000, "watch_quiet_seconds": 300, "board_idle_minutes": 0})
+    out = tmp_path / "out"
+    build.build(answers, out)
+    settings = json.loads((out / ".claude" / "settings.json").read_text(encoding="utf-8"))
+    assert settings["autoCompactWindow"] == 200000
+    assert settings["env"]["CLAUDE_CODE_IDLE_COMPACT_MIN_TOKENS"] == "100000"
+    board = json.loads((out / ".claude" / "board" / "board.json").read_text(encoding="utf-8"))
+    assert board["watch"]["quiet_seconds"] == 300 and board["watch"]["board_idle_minutes"] == 0
+    assert "200k tokens" in (out / ".claude" / "skills" / "supervisor" / "SKILL.md").read_text(encoding="utf-8")
+    questions = build.load_questions()
+    assert [q["id"] for q in questions if q.get("advanced")][0] == "compact_window"
 
 
 def test_cli_questions_and_example():

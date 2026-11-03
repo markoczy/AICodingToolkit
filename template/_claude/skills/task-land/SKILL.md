@@ -99,3 +99,4 @@ tb move <id> done --tokens "executor 140k, executor-light 30k, reviewer 55k (est
 - Record follow-ups the agents proposed as new tasks (`task-new`) before closing.
 - If the task had a plan, set its status line to "{{landed_status}}".
 - Remove the task from the handover; `tb check`; {{commit_push}}: `tasks: T012 {{#if has_deploy}}06-Deploy{{else}}04-CodeReview{{/if}} → 07-Done`.
+- Nothing else running and the user in chat? Start fresh (supervisor skill, "Context size").

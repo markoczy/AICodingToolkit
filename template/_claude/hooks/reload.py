@@ -4,10 +4,11 @@
 After the public files it prints the files listed under "reload" in .claude/board/local.json (untracked, per
 checkout; a list of repo-relative paths), in the same framing.
 
-Active only for a supervisor session: one launched with CLAUDE_ROLE=supervisor, or one whose own transcript shows
-that the `supervisor` skill was invoked (Skill tool call or /supervisor). The transcript check makes it work after
-a compaction without any setup; a /clear or a new session has a new transcript, so there the role comes from
-CLAUDE_ROLE or from invoking /supervisor again.
+Active only for a supervisor session: one launched with CLAUDE_ROLE=supervisor, one in a checkout whose
+.claude/board/local.json says "role": "supervisor" (written by `tb me --role supervisor`), or one whose own
+transcript shows that the `supervisor` skill was invoked (Skill tool call or /supervisor). The transcript check
+makes it work after a compaction without any setup; a /clear or a new session has a new transcript, so there the
+role comes from local.json, from CLAUDE_ROLE or from invoking /supervisor again.
 
 Two rules keep the injection small enough for Claude Code to hold it inline (a larger hook output is persisted to a
 file with a short preview, so the files would not be in context):
@@ -90,6 +91,17 @@ def invoked_skills(transcript_path) -> set:
     except OSError:
         pass
     return names
+
+
+def local_role(root: Path):
+    """The "role" of the untracked local board config (a string), or None when there is none to read."""
+    try:
+        with open(root / LOCAL_CONFIG, encoding="utf-8") as handle:
+            local = json.load(handle)
+    except (OSError, ValueError):
+        return None
+    role = local.get("role") if isinstance(local, dict) else None
+    return role if isinstance(role, str) else None
 
 
 def local_reload_list(root: Path) -> list:
@@ -220,9 +232,12 @@ def main() -> int:
         payload = {}
     source = payload.get("source", "unknown")
 
+    root = Path(os.environ.get("CLAUDE_PROJECT_DIR") or payload.get("cwd") or Path.cwd())
     invoked = invoked_skills(payload.get("transcript_path"))
     if os.environ.get("CLAUDE_ROLE") == ROLE:
         why = "CLAUDE_ROLE"
+    elif local_role(root) == ROLE:
+        why = "local.json"
     elif SKILL in invoked:
         why = "transcript"
     else:
@@ -233,7 +248,6 @@ def main() -> int:
         sys.stdout.reconfigure(encoding="utf-8")
     except AttributeError:
         pass
-    root = Path(os.environ.get("CLAUDE_PROJECT_DIR") or payload.get("cwd") or Path.cwd())
     budget = budget_bytes(root)
     # Only a compaction makes the harness re-list the bodies of the invoked skills.
     skip_skills = invoked if source == "compact" else set()

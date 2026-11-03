@@ -158,6 +158,10 @@ Optional `board_commits`: `true` (written by `tb me <name> --board-commits on`, 
 checkout's board commit its own answers and notes (Board commits); only coordinator checkouts set it, never the
 supervisor's.
 
+Optional `role`: `"supervisor"` (written by `tb me <name> --role supervisor`, `--role none` removes it) makes
+the SessionStart reload hook inject the supervisor role into every Claude Code session of this checkout, also
+after `/clear`; only the supervisor's checkout sets it. `tb` only validates it (the value must be `"supervisor"`).
+
 Optional `sources`: more task folders for this checkout only, same keys as in `board.json`, e.g.
 `{"me": "Alex", "sources": [{"name": "private", "root": "PRIVATE_Tasks", "prefix": "P", "editable": true}]}`.
 Names and prefixes must not clash with `board.json`'s sources. `tb me` keeps them when it changes `me`.

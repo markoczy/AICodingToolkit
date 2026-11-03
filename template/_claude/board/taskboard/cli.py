@@ -530,12 +530,12 @@ def read_local(path: str) -> dict:
 
 def cmd_me(config: dict, args) -> int:
     """
-    Print or set the person working in this checkout and its board commits opt-in (local.json next to board.json,
-    never versioned). The other keys of local.json (private sources, the reload list) are kept.
+    Print or set the person working in this checkout, its board commits opt-in and its role (local.json next to
+    board.json, never versioned). The other keys of local.json (private sources, the reload list) are kept.
     """
     path = local_path_of(config)
     people = config.get("people", [])
-    if args.name is None and args.board_commits is None:
+    if args.name is None and args.board_commits is None and args.role is None:
         try:
             with open(path, encoding="utf-8") as f:
                 local = json.load(f)
@@ -550,6 +550,8 @@ def cmd_me(config: dict, args) -> int:
         print(me)
         if local.get("board_commits") is True:
             print("board commits on")
+        if local.get("role") == "supervisor":
+            print("role supervisor")
         return 0
     local = read_local(path)
     if args.name is not None:
@@ -557,9 +559,13 @@ def cmd_me(config: dict, args) -> int:
             raise CliError(f"{args.name!r} is not in board.json people ({', '.join(people) or 'none configured'})")
         local["me"] = args.name
     elif local.get("me") not in people:
-        raise CliError("set the person first: tb me <name> --board-commits on|off")
+        raise CliError("set the person first: tb me <name> --board-commits on|off / --role supervisor|none")
     if args.board_commits is not None:
         local["board_commits"] = args.board_commits == "on"
+    if args.role == "none":
+        local.pop("role", None)
+    elif args.role is not None:
+        local["role"] = args.role
     temp = path + ".tmp"
     try:
         with open(temp, "w", encoding="utf-8", newline="\n") as f:
@@ -568,7 +574,8 @@ def cmd_me(config: dict, args) -> int:
     except OSError as exc:
         raise CliError(f"Cannot write {path}: {exc}") from exc
     commits = " (board commits on)" if local.get("board_commits") is True else ""
-    print(f"me = {local['me']}{commits} ({rel(config, path)}, not versioned)")
+    role = " (role supervisor)" if local.get("role") == "supervisor" else ""
+    print(f"me = {local['me']}{commits}{role} ({rel(config, path)}, not versioned)")
     return 0
 
 
@@ -983,6 +990,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--board-commits", choices=["on", "off"],
                    help="the web board commits its own answers and notes (coordinator checkouts only, never the "
                         "supervisor's)")
+    p.add_argument("--role", choices=["supervisor", "none"],
+                   help="supervisor: the reload hook injects the supervisor role into every Claude Code session "
+                        "of this checkout, also after /clear (the supervisor's checkout only); none removes it")
     p.set_defaults(func=cmd_me)
 
     p = sub.add_parser("serve", help="run the local web board (and update the checkout periodically)")

@@ -11,14 +11,22 @@ defaults are in `build/questions.json`; the builder is `build/build.py`. Never a
 ## 1. Ask the questions
 
 1. Print the question list: `python build/build.py --questions` (JSON: `id`, `prompt`, `type`, `options`,
-   `default`, `when`). Ask them in that order, in the user's language. Skip a question whose `when` is false
-   for the answers so far (e.g. `people` and `ownership` only for `mode == 'multi'`, `main_branch` only for
-   git). Offer the options as (a), (b), (c) and name the default, so one letter or "default" answers.
+   `default`, `when`, `min`/`max`, `advanced`). Ask the ones without `advanced` in that order, in the user's
+   language. Skip a question whose `when` is false for the answers so far (e.g. `people` and `ownership` only
+   for `mode == 'multi'`, `main_branch` only for git). Offer the options as (a), (b), (c) and name the default,
+   so one letter or "default" answers.
 2. Ask several questions per message where they are independent (project name, vcs and mode together; then
    the people and ownership; then analyst, deploy and task types; then colours, port, python and
    confidentiality). Keep each message short.
 3. If the user already gave answers in their request or has a `harness-answers.json` from an earlier build,
    use those and ask only what is missing or what they want to change.
+4. **Advanced settings** last, as one table, not one by one: every question with `advanced: true`, with its
+   default and a one-line meaning taken from its prompt (compaction window and idle compaction of every session,
+   the watcher's quiet and update seconds, the board's idle minutes, the reload budget). Say that the defaults
+   suit most projects and ask whether they are fine or which to change; record only the ones the user changes,
+   the rest take the default. Explain a value further only when asked (e.g. the compaction window: every turn
+   re-reads the whole context, so a small window keeps a long-lived session cheap, a large one lets an executor
+   work longer before a compaction).
 
 ## 2. Build
 
@@ -39,7 +47,7 @@ python build/build.py --answers <scratchpad>/answers.json --out <scratchpad>/har
 ## 3. Hand over
 
 Tell the user, in a few lines: the zip path, what the bundle contains for their answers (vcs, mode, ownership,
-agents, deploy target), and that `SETUP.md` inside the zip lists the steps (unzip into the main checkout,
+agents, deploy target, the advanced values that differ from the defaults), and that `SETUP.md` inside the zip lists the steps (unzip into the main checkout,
 ignore rules, `pip install`, fill `AI/Context.md`, `tb me`, first commit, `/supervisor`). Offer to walk through
 the setup in the target checkout if they name it. Keep `answers.json` next to the zip (copy it into `dist/`
 as `<project-slug>-answers.json`) so the harness can be rebuilt after a toolkit update.

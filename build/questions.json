@@ -1,5 +1,5 @@
 {
-  "_doc": "The questions the harness-setup skill asks, in order. `when` is a Python expression over the earlier answers; a question whose `when` is false is skipped and its answer dropped. `default` may be a plain value or {by: <answer id>, values: {...}, else: ...}. `example` feeds `build.py --example`.",
+  "_doc": "The questions the harness-setup skill asks, in order. `when` is a Python expression over the earlier answers; a question whose `when` is false is skipped and its answer dropped. `default` may be a plain value or {by: <answer id>, values: {...}, else: ...}. `example` feeds `build.py --example`. `min`/`max` bound an int. `advanced: true` marks a tuning value with a safe default: the skill shows these as one table at the end and asks whether the defaults are fine instead of asking each one.",
   "questions": [
     {
       "id": "project_name",
@@ -118,6 +118,48 @@
       "type": "text",
       "default": "host names, IP addresses, credentials, customer data and private file names",
       "example": {"git": "host names, IP addresses, trading-course or methodology names, private file names (P__*, PRIVATE_*) and credentials", "svn": "host names, credentials, passwords and customer files"}
+    },
+    {
+      "id": "compact_window",
+      "prompt": "Automatic compaction window, in tokens, for every Claude Code session of the checkout (agents included): the conversation is compacted when it reaches this size; a small window keeps the cost per turn low, a large one lets an executor work longer without a compaction",
+      "type": "int",
+      "default": 150000, "min": 100000, "max": 1000000,
+      "advanced": true
+    },
+    {
+      "id": "idle_compact_tokens",
+      "prompt": "An idle session compacts itself from this many tokens (while its prompt cache is on the one-hour lifetime)",
+      "type": "int",
+      "default": 100000, "min": 100000, "max": 1000000,
+      "advanced": true
+    },
+    {
+      "id": "watch_quiet_seconds",
+      "prompt": "Seconds the watcher waits after the last board input before it wakes the supervisor (several answers arrive together)",
+      "type": "int",
+      "default": 120, "min": 0, "max": 3600,
+      "advanced": true
+    },
+    {
+      "id": "watch_update_seconds",
+      "prompt": "Seconds between the watcher's pulls (git) or updates (svn) of the task files",
+      "type": "int",
+      "default": 60, "min": 10, "max": 3600,
+      "advanced": true
+    },
+    {
+      "id": "board_idle_minutes",
+      "prompt": "Minutes without a request after which the watcher's web board stops (0: never)",
+      "type": "int",
+      "default": 15, "min": 0, "max": 1440,
+      "advanced": true
+    },
+    {
+      "id": "reload_budget_bytes",
+      "prompt": "Bytes the reload hook may print into the context after a compaction (the handover is never dropped)",
+      "type": "int",
+      "default": 20000, "min": 1000, "max": 200000,
+      "advanced": true
     }
   ]
 }

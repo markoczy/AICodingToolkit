@@ -17,9 +17,9 @@ Run with the **Bash tool**, `run_in_background: true`:
 
 It starts the web board if it isn't running (log: `.claude/board/log/server.log`; URL in the first output line),
 {{#if git}}pulls `{{main}}` (`git fetch` + `git merge --ff-only`){{else}}runs `svn update` of `AI/` (never the code){{/if}} at start and every
-`watch.update_seconds` (default 60 s), then sleeps until there is input for you: a new board Log line
+`watch.update_seconds` ({{update_seconds}} s), then sleeps until there is input for you: a new board Log line
 (`<name> (board):`) in any task source{{#if multiuser}}, or other devs' input that arrived with an update (INCOMING){{/if}}. It waits
-until nothing more arrives for `watch.quiet_seconds` (default 120 s, so several answers come together), prints
+until nothing more arrives for `watch.quiet_seconds` ({{quiet_seconds}} s, so several answers come together), prints
 them and exits. The exit is what wakes you. While it sleeps it costs no model usage.
 
 - Don't use a polling loop, `sleep` loops or a monitor tool instead: they wake the session periodically and cost
@@ -53,7 +53,7 @@ them and exits. The exit is what wakes you. While it sleeps it costs no model us
 {{/if}}
 - It only works while this session is open; otherwise input waits in the files (`tb watch --once` at session
   start shows what is waiting on you). When the session ends, the watcher ends within about 5 s (exit 4,
-  `SESSION GONE`) and the board it started stops 15 minutes after its last request (`watch.board_idle_minutes`;
+  `SESSION GONE`) and the board it started stops {{board_idle_minutes}} minutes after its last request (`watch.board_idle_minutes`;
   an open board page keeps it alive). A restarted watcher starts a new board when needed.
 
 ## When it wakes you

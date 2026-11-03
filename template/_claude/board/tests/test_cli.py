@@ -297,6 +297,21 @@ class TestMe:
         assert json.loads(self.local(repo).read_text(encoding="utf-8")) == {"me": "Owens"}
         assert not (repo / ".claude" / "board" / "local.json.tmp").exists()
 
+    def test_role_is_set_printed_and_removed(self, repo, capsys):
+        with_people(repo)
+        assert tb(repo, "me", "--role", "supervisor") == 1  # the person first
+        assert tb(repo, "me", "Alex", "--role", "supervisor") == 0
+        assert json.loads(self.local(repo).read_text(encoding="utf-8")) == {"me": "Alex", "role": "supervisor"}
+        assert "me = Alex (role supervisor)" in capsys.readouterr().out
+        assert tb(repo, "me") == 0
+        assert capsys.readouterr().out == "Alex\nrole supervisor\n"
+        assert tb(repo, "board") == 0
+        assert tb(repo, "me", "--role", "none") == 0
+        assert json.loads(self.local(repo).read_text(encoding="utf-8")) == {"me": "Alex"}
+        self.local(repo).write_text(json.dumps({"me": "Alex", "role": "coordinator"}), encoding="utf-8")
+        assert tb(repo, "board") == 2
+        assert 'role must be "supervisor" or absent' in capsys.readouterr().err
+
     def test_unknown_name_is_refused(self, repo, capsys):
         with_people(repo)
         assert tb(repo, "me", "Bob") == 1

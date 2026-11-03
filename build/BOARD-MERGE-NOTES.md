@@ -65,7 +65,8 @@ New in `board.json`: `vcs` (`git` | `svn`, default `git`; chooses the backend an
 `ownership` (`strict` | `open`, default `strict`), `watch.board_idle_minutes` (default 15). `main_branch`
 defaults to `master` for git and `trunk` for svn. Kept: `type_rules`, `handover`, `reload.budget_bytes`.
 Both new keys are validated like the others (a config error names the allowed values). `local.json`: `me`,
-`sources`, `reload`, `board_commits`.
+`sources`, `reload`, `board_commits`, `role` (`"supervisor"` only; read by the reload hook, written by
+`tb me --role`).
 
 The other person's `board.json` template already uses `vcs`, `main_branch` and `ownership` with the same
 values; the board tests that load the packaged `board.json` skip while it holds template tags.

@@ -36,6 +36,7 @@ prints the derived template context.
 | `analyst` | adds the analyst agent and the "data impact" measurement to the reviewer, the plans and the delegation templates |
 | `deploy` production / test / none | what 06-Deploy means in the state table, the landing skill and the supervisor's queue |
 | `task_types`, `port`, `python`, colours, `confidential` | board config, CSS tokens, the command every skill uses, the confidentiality rule's wording |
+| advanced: `compact_window`, `idle_compact_tokens`, `watch_quiet_seconds`, `watch_update_seconds`, `board_idle_minutes`, `reload_budget_bytes` | the compaction window and idle compaction in `settings.json` (every session re-reads its whole context at each turn, so the window is the main cost lever), the watcher timings and the reload budget in `board.json`; the skill shows them as one table with their defaults at the end and asks for an OK |
 
 ## Layout
 
